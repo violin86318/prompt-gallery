@@ -17,7 +17,7 @@ Adrian 测试图批量生成 — 带完整任务追踪 + 429 限流重试
   python3 src/gen_adrian.py --retry-failed # 重试失败任务
 """
 
-import argparse, json, os, sys, time, subprocess, re
+import argparse, base64, json, os, sys, time, subprocess, re, urllib.request
 from pathlib import Path
 from datetime import datetime
 
@@ -29,8 +29,13 @@ TRACKER_PATH = DATA_DIR / "adrian_tasks.json"
 SKILL_DIR = BASE.parent / "remio" / "skills" / "bizyair-skill" / "scripts"
 
 # Model endpoints
-ENDPOINT_NANO = "bza-image-b2-base/text-to-image"   # Nano Banana 2 → gcli_
-ENDPOINT_GPT = "bza-image-o2-base/text-to-image"     # GPT Image 2 → bizyair_
+# Nano Banana 2 → 本地 NAS gcli2api（免费，不走 bizyair）
+GCLI_API = "http://192.168.50.188:7861"
+GCLI_KEY = "violin"
+GCLI_MODEL = "gemini-3.1-flash-image"
+ENDPOINT_NANO = f"{GCLI_API}/antigravity/v1/models/{GCLI_MODEL}-16x9:generateContent"
+# GPT Image 2 → bizyair（需代理）
+ENDPOINT_GPT = "bza-image-o2-base/text-to-image"
 
 # ── Tracker ────────────────────────────────────────────────────────────────
 def load_tracker():
@@ -137,24 +142,69 @@ elapsed = time.time() - t0
 print(json.dumps({{"ok": False, "error": last_error, "elapsed": round(elapsed, 1)}}))
 '''
 
-def gen_image(prompt_text, output_path, endpoint):
-    """生成单张图，带 429 限流重试。返回 dict"""
-    helper = '/tmp/_gen_one.py'
+def gen_gcli(prompt_text, output_path):
+    """通过本地 NAS gcli2api (Gemini) 生成图片，免费不走 bizyair"""
+    import base64, urllib.request, urllib.error
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
+        "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]}
+    }
+    headers = {
+        "x-goog-api-key": GCLI_KEY,
+        "Content-Type": "application/json"
+    }
+    req = urllib.request.Request(
+        ENDPOINT_NANO,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST"
+    )
+    t0 = time.time()
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+            elapsed = time.time() - t0
+            parts = result.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+            for part in parts:
+                if "inlineData" in part:
+                    img_data = base64.b64decode(part["inlineData"]["data"])
+                    with open(output_path, "wb") as f:
+                        f.write(img_data)
+                    sz = len(img_data) // 1024
+                    return {"ok": True, "size_kb": sz, "elapsed": round(elapsed, 1), "request_id": "gcli_local"}
+            return {"ok": False, "error": "no image in response", "elapsed": round(elapsed, 1)}
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(10)
+                continue
+            return {"ok": False, "error": str(e)[:200], "elapsed": round(time.time()-t0, 1)}
+
+
+def gen_bizyair(prompt_text, output_path):
+    """通过 bizyair modelzoo 生成图片"""
+    helper = '/tmp/_gen_one_bizy.py'
     with open(helper, 'w') as f:
         f.write(HELPER_TEMPLATE.format(
             skill_dir=str(SKILL_DIR),
-            endpoint=endpoint,
+            endpoint=ENDPOINT_GPT,
         ))
-
     env = os.environ.copy()
     env["_PROMPT"] = prompt_text
     env["_OUTPUT"] = str(output_path)
-
     r = subprocess.run([sys.executable, helper], capture_output=True, text=True, timeout=600, env=env)
     try:
         return json.loads(r.stdout.strip())
     except:
         return {"ok": False, "error": f"parse error: {r.stdout[:100:]} {r.stderr[:100:]}"}
+
+
+def gen_image(prompt_text, output_path, endpoint):
+    """根据 endpoint 分发到 gcli 或 bizyair"""
+    if "antigravity" in endpoint:
+        return gen_gcli(prompt_text, output_path)
+    else:
+        return gen_bizyair(prompt_text, output_path)
 
 # ── Data ───────────────────────────────────────────────────────────────────
 def load_adrian():
