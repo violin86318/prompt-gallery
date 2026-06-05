@@ -1,0 +1,532 @@
+#!/usr/bin/env python3
+"""每日箴言·一字美学 — 独立 crontab 脚本
+每天选一个哲理单字，用 BizyAir GPT Image 2 生成东方美学海报，
+用 GLM 动态生成 3 版朋友圈文案，发到 Telegram，记录到画廊数据。
+
+用法:
+    python3 daily_wisdom.py              # 自动选字
+    python3 daily_wisdom.py --char 澄    # 指定字
+    python3 daily_wisdom.py --dry-run    # 只选字不生图
+    python3 daily_wisdom.py --caption-only 澄  # 只生成文案（跳过图片）
+"""
+
+import subprocess, sys, os, json, time, re, random, urllib.request, urllib.error
+from pathlib import Path
+from datetime import datetime
+
+# ── 路径 ──────────────────────────────────────────────
+AGENT = Path(os.path.expanduser(
+    "~/Library/Application Support/remio/Users/F2313D5DDFE8FCF316DC1149F06BB14B/agent"
+))
+CLI = AGENT / "remio/skills/bizyair-skill/scripts/cli.py"
+OUTPUT_DIR = AGENT / "prompt-gallery/daily-wisdom"
+GALLERY_DIR = AGENT / "prompt-gallery/daily-wisdom-gallery"
+MEMORY_DIR = AGENT / "memory"
+GALLERY_DATA = OUTPUT_DIR / "wisdom_gallery.json"
+ENDPOINT = "bza-image-o2-base/text-to-image"
+
+# ── Telegram ──────────────────────────────────────────
+TG_BOT = "8650394988:AAEXYZe4AZekKfE1xjVDpG0t1fjgglxjsdA"
+TG_CHAT = "6428839227"
+
+# ── GLM API ──────────────────────────────────────────
+GLM_API_KEY = os.environ.get("GLM_API_KEY", "")
+GLM_MODEL = os.environ.get("GLM_MODEL", "glm-5.1")
+GLM_BASE = "https://open.bigmodel.cn/api/coding/paas/v4/"
+
+# ── 字库 ──────────────────────────────────────────────
+CHAR_POOL = [
+    "悟", "归", "澄", "拙", "虚", "韵", "朴", "宁", "渡", "寂",
+    "静", "禅", "觉", "舍", "淡", "素", "影", "岚", "渺", "幽",
+    "墨", "渊", "远", "闲", "逸", "观", "微", "照", "寂", "隐",
+    "寻", "栖", "泊", "凝", "溯", "融", "化", "涵", "蓄", "敛",
+    "恒", "笃", "慎", "恕", "慈", "悲", "愿", "净", "空", "明",
+    "清", "柔", "和", "安", "简", "真", "如", "初", "善", "礼",
+    "宽", "厚", "温", "良", "恭", "让", "逊", "谦", "敬", "诚",
+    "信", "恒", "坚", "韧", "达", "通", "畅", "舒", "缓", "徐",
+]
+
+# ── 提示词模板 ────────────────────────────────────────
+PROMPT_TEMPLATE_FULL = """请围绕用户提供的"主题"，设计一张具有收藏级质感的高端东方美学海报 / 信息图 / 邀请函 / PPT视觉封面。整张画面必须达到专业设计展作品级别，而不是普通模板拼贴。
+
+【核心创作逻辑】
+1. 从用户输入的主题中，自动提炼一个最能代表主题精神、同时最适合视觉化呈现的"核心字"或"核心词"。
+2. 以这个核心字作为整张海报的主视觉骨架，使它成为画面的中心符号。
+3. 采用"字中有画、画中有意、意中有信息"的方式进行构图：让核心字既是文字、也是图像容器、也是主题隐喻。
+4. 整体不是简单插画，也不是普通排版，而是"汉字结构 + 插画叠底 + 信息设计 + 东方留白美学"的综合作品。
+
+【视觉风格要求】
+- 整体风格：高级、克制、典雅、专业、安静、耐看、具有东方哲思与文化气息
+- 背景材质：宣纸、旧纸、细腻纸张肌理、淡淡水痕、朦胧花影、古籍质感
+- 色彩系统：低饱和配色，以米白、茶褐、灰绿、淡墨、浅赭为主
+- 气质方向：宋代美学、文人气、书卷气、东方展览视觉
+
+用户输入主题：【{char}】"""
+
+PROMPT_TEMPLATE = """Design a premium Eastern aesthetic poster featuring the Chinese character "{char}" as the central visual element. The character should integrate with ink wash painting, rice paper texture, and Song Dynasty aesthetics. Style: elegant, restrained, scholarly, with generous white space. Background: aged paper with subtle water stains and faint floral shadows. Colors: muted tones — cream white, tea brown, pale ink, gray-green. The character "{char}" must be the visual anchor, blending calligraphy with illustration. Museum-quality composition, not template-based."""
+
+# ── 文案生成 Prompt ──────────────────────────────────
+CAPTION_SYSTEM = """你是一位精通东方美学与生活哲学的文案大师。你的风格：克制、有画面感、不鸡汤、不说教。
+像一篇好的散文诗，每个字都有重量。读者看完会觉得「安静了一下」。"""
+
+CAPTION_USER = """请为今日箴言字【{char}】生成 3 版朋友圈文案，严格按以下格式：
+
+## 版本1：生活分享型
+（适合日常发朋友圈，带一点生活气息，100字以内）
+
+## 版本2：观点输出型
+（像一个有洞察的人说的观点，不鸡汤但有深度，80字以内）
+
+## 版本3：金句型
+（极简，一句话击中人心，30字以内）
+
+要求：
+- 每个版本末尾自然融入「{char}」这个字
+- 不要用感叹号，不要用 emoji
+- 语气是「对自己说话」，不是「对世界宣告」
+- 要有具体画面，不要抽象概念"""
+
+
+# ── 核心函数 ──────────────────────────────────────────
+
+def load_recent_chars(days=14):
+    """从 wisdom_gallery.json 读取已用过的字（比 memory 文件更可靠）"""
+    used = set()
+    if GALLERY_DATA.exists():
+        try:
+            data = json.loads(GALLERY_DATA.read_text(encoding="utf-8"))
+            for entry in data:
+                c = entry.get("char", "")
+                if c:
+                    used.add(c)
+        except Exception:
+            pass
+    # 兜底：也读 memory 文件
+    for i in range(days):
+        d = datetime.now().strftime("%Y%m%d") if i == 0 else \
+            time.strftime("%Y%m%d", time.localtime(time.time() - i * 86400))
+        mem_file = MEMORY_DIR / f"MEM-{d}.md"
+        if mem_file.exists():
+            content = mem_file.read_text(encoding="utf-8")
+            matches = re.findall(r"每日箴言.*?【(.)】", content)
+            used.update(matches)
+    return used
+
+
+def pick_char(specified=None):
+    """选一个不重复的字"""
+    if specified:
+        return specified
+    used = load_recent_chars()
+    available = [c for c in CHAR_POOL if c not in used]
+    if not available:
+        available = CHAR_POOL
+    return random.choice(available)
+
+
+def generate_image(char, output_path):
+    """用 BizyAir ModelZoo CLI 生成图片"""
+    prompt = PROMPT_TEMPLATE.format(char=char)
+    if len(prompt) > 4000:
+        prompt = prompt[:4000]
+
+    print(f"[1/4] 生成图片中... 字=【{char}】", flush=True)
+
+    prompts_to_try = [prompt]
+    full_prompt = PROMPT_TEMPLATE_FULL.format(char=char)
+    if prompt != full_prompt:
+        prompts_to_try.append(full_prompt)
+
+    img_url = None
+    for attempt, p in enumerate(prompts_to_try):
+        label = "英文精简版" if attempt == 0 else "中文完整版"
+        print(f"  尝试 {label}...", flush=True)
+        r = subprocess.run(
+            [sys.executable, str(CLI), "modelzoo-run", ENDPOINT,
+             "--param", f"prompt={p[:2000]}",
+             "--param", "aspect_ratio=1:1"],
+            capture_output=True, text=True, timeout=600
+        )
+        for line in r.stdout.split("\n"):
+            if "[images]" in line:
+                img_url = line.split("[images]", 1)[1].strip()
+                break
+        if img_url:
+            break
+        print(f"  {label} 失败，尝试下一版本...", flush=True)
+
+    if not img_url:
+        print(f"[FAIL] 所有版本均失败", flush=True)
+        print(f"[STDOUT] {r.stdout[-300:]}", flush=True)
+        return False
+
+    print(f"[1/4] 下载图片: {img_url[:80]}...", flush=True)
+    dl = subprocess.run(
+        ["curl", "-sS", "--connect-timeout", "15", "--max-time", "120",
+         "-o", str(output_path), img_url],
+        capture_output=True, timeout=130
+    )
+
+    if output_path.exists() and output_path.stat().st_size > 1000:
+        size_kb = output_path.stat().st_size // 1024
+        print(f"[OK] {output_path.name} ({size_kb}KB)", flush=True)
+        return True
+    else:
+        print(f"[FAIL] 下载失败", flush=True)
+        return False
+
+
+def generate_captions_llm(char):
+    """用 GLM API 动态生成 3 版朋友圈文案"""
+    if not GLM_API_KEY:
+        print("[WARN] GLM_API_KEY 未设置，使用通用文案", flush=True)
+        return _fallback_captions(char)
+
+    print(f"[2/4] GLM 生成文案中... 字=【{char}】", flush=True)
+
+    payload = json.dumps({
+        "model": GLM_MODEL,
+        "messages": [
+            {"role": "system", "content": CAPTION_SYSTEM},
+            {"role": "user", "content": CAPTION_USER.format(char=char)}
+        ],
+        "temperature": 0.85,
+        "max_tokens": 800
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        f"{GLM_BASE}/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {GLM_API_KEY}"
+        }
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            text = body["choices"][0]["message"]["content"]
+
+        # 解析 3 个版本
+        versions = {"v1": "", "v2": "", "v3": ""}
+        sections = re.split(r"##\s*版本[123]", text)
+        if len(sections) >= 4:
+            versions["v1"] = _clean_caption(sections[1])
+            versions["v2"] = _clean_caption(sections[2])
+            versions["v3"] = _clean_caption(sections[3])
+        else:
+            # fallback: 按 \n\n 分 3 段
+            parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+            for i, key in enumerate(["v1", "v2", "v3"]):
+                versions[key] = parts[i] if i < len(parts) else f"今日字：【{char}】"
+
+        print(f"[OK] 文案生成成功", flush=True)
+        return [versions["v1"], versions["v2"], versions["v3"]]
+
+    except Exception as e:
+        print(f"[WARN] GLM 调用失败: {e}，使用通用文案", flush=True)
+        return _fallback_captions(char)
+
+
+def _clean_caption(text):
+    """清理文案：去掉标题行、多余空行"""
+    lines = [l.strip() for l in text.strip().split("\n")
+             if l.strip() and not l.strip().startswith("#")
+             and not l.strip().startswith("版本")]
+    return "\n".join(lines)
+
+
+def _fallback_captions(char):
+    """通用兜底文案"""
+    return [
+        f"有些字，看一眼就安静了。\n【{char}】\n不必多说，心领神会。",
+        f"世界太吵了，一个字就够了。\n{char}，退一步的注视。",
+        f"真正有力量的字，都不喧哗。\n{char}。",
+    ]
+
+
+def send_telegram(image_path, char, captions):
+    """发送图片 + 3 版文案到 Telegram。返回 (bool, list[失败原因])"""
+    print(f"[3/4] 发送到 Telegram...", flush=True)
+    today = datetime.now().strftime("%Y-%m-%d")
+    caption = f"📜 每日箴言 · {today}\n\n今日字：【{char}】\n\n— 一字美学 · 中式秩序美感"
+
+    failures = []
+
+    # 发送图片（重试 2 次）
+    photo_ok = False
+    for attempt in (1, 2):
+        try:
+            r = subprocess.run(
+                ["curl", "-sS", "--max-time", "60",
+                 f"https://api.telegram.org/bot{TG_BOT}/sendPhoto",
+                 "-F", f"chat_id={TG_CHAT}",
+                 "-F", f"photo=@{image_path}",
+                 "-F", f"caption={caption}"],
+                capture_output=True, text=True, timeout=70
+            )
+            result = json.loads(r.stdout) if r.stdout else {}
+            if result.get("ok"):
+                print(f"[OK] Telegram 图片发送成功 (第{attempt}次)", flush=True)
+                photo_ok = True
+                break
+            else:
+                err = result.get("description", str(result))[:200]
+                print(f"[FAIL] Telegram 图片第{attempt}次: {err}", flush=True)
+                failures.append(f"photo-attempt{attempt}: {err}")
+                time.sleep(2)
+        except Exception as e:
+            print(f"[FAIL] Telegram 图片第{attempt}次异常: {e}", flush=True)
+            failures.append(f"photo-attempt{attempt}: {e}")
+            time.sleep(2)
+
+    if not photo_ok:
+        # 全部失败 → 保存兜底到本地
+        fallback = OUTPUT_DIR / f"FAILED_{today}.json"
+        fallback.write_text(json.dumps({
+            "date": today, "char": char, "image": image_path.name,
+            "captions": {"v1_life": captions[0], "v2_opinion": captions[1], "v3_quote": captions[2]},
+            "failures": failures,
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[FALLBACK] 兜底保存: {fallback}", flush=True)
+        return False, failures
+
+    # 发送 3 版文案
+    labels = ["版本1 · 生活分享", "版本2 · 观点输出", "版本3 · 金句"]
+    msg_failures = 0
+    for i, (label, text) in enumerate(zip(labels, captions)):
+        msg = f"✍️ {label}\n\n{text}"
+        try:
+            r = subprocess.run(
+                ["curl", "-sS", "--max-time", "30",
+                 f"https://api.telegram.org/bot{TG_BOT}/sendMessage",
+                 "-d", f"chat_id={TG_CHAT}",
+                 "-d", f"text={msg}"],
+                capture_output=True, text=True, timeout=40
+            )
+            result = json.loads(r.stdout) if r.stdout else {}
+            if result.get("ok"):
+                print(f"[OK] 文案 {i+1} 发送成功", flush=True)
+            else:
+                err = result.get("description", str(result))[:150]
+                print(f"[FAIL] 文案 {i+1}: {err}", flush=True)
+                msg_failures += 1
+                failures.append(f"text-{i+1}: {err}")
+        except Exception as e:
+            print(f"[FAIL] 文案 {i+1} 异常: {e}", flush=True)
+            msg_failures += 1
+            failures.append(f"text-{i+1}: {e}")
+        time.sleep(0.5)
+
+    # 文案失败过半不算彻底成功
+    return msg_failures < 2, failures
+
+
+def save_gallery_data(char, captions, image_path):
+    """保存到画廊 JSON 数据"""
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # 加载已有数据
+    if GALLERY_DATA.exists():
+        with open(GALLERY_DATA, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    else:
+        data = []
+
+    # 检查是否已存在
+    existing = [e for e in data if e.get("date") == today]
+    if not existing:
+        entry = {
+            "date": today,
+            "char": char,
+            "image": image_path.name,
+            "captions": {
+                "v1_life": captions[0],
+                "v2_opinion": captions[1],
+                "v3_quote": captions[2],
+            },
+            "created_at": datetime.now().isoformat(),
+        }
+        data.append(entry)
+
+        with open(GALLERY_DATA, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        print(f"[4/4] 画廊数据已保存 ({len(data)} 条)", flush=True)
+    else:
+        print(f"[4/4] 今日画廊数据已存在，跳过", flush=True)
+
+
+def deploy_static_site():
+    """重新构建静态站并部署到 Cloudflare Pages（best-effort，不中断主流程）"""
+    deploy_script = GALLERY_DIR / "deploy_wisdom.sh"
+    if not deploy_script.exists():
+        print(f"[WARN] 部署脚本不存在: {deploy_script}", flush=True)
+        return
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["bash", str(deploy_script)],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if result.returncode == 0:
+            print("[DEPLOY] 静态站部署成功", flush=True)
+            if result.stdout:
+                # 只打印最后 5 行
+                tail = '\n'.join(result.stdout.strip().split('\n')[-5:])
+                print(tail, flush=True)
+        else:
+            print(f"[DEPLOY-FAIL] 返回码 {result.returncode}", flush=True)
+            if result.stderr:
+                print(result.stderr[:500], flush=True)
+    except subprocess.TimeoutExpired:
+        print("[DEPLOY-TIMEOUT] 部署超时（>180s）", flush=True)
+    except Exception as e:
+        print(f"[DEPLOY-ERR] {e}", flush=True)
+
+
+def record_char(char, captions):
+    """记录到 memory/MEM-今天.md"""
+    today = datetime.now().strftime("%Y%m%d")
+    mem_file = MEMORY_DIR / f"MEM-{today}.md"
+
+    caption_preview = captions[2][:50] if captions and len(captions) > 2 else ""
+    entry = f"\n- 📜 每日箴言：【{char}】— 已发送 Telegram（GLM 文案）\n  金句：{caption_preview}\n"
+
+    if mem_file.exists():
+        content = mem_file.read_text(encoding="utf-8")
+        if f"每日箴言" not in content:
+            with open(mem_file, "a", encoding="utf-8") as f:
+                f.write(entry)
+    else:
+        with open(mem_file, "w", encoding="utf-8") as f:
+            f.write(f"# MEM-{today}\n\n{entry}\n")
+
+    print(f"[OK] 已记录到 {mem_file.name}", flush=True)
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--char", help="指定字")
+    parser.add_argument("--dry-run", action="store_true", help="只选字不生图")
+    parser.add_argument("--caption-only", action="store_true", help="只生成文案（跳过图片）")
+    parser.add_argument("--backfill-date", help="补全指定日期的 gallery（如 2026-06-03）")
+    args = parser.parse_args()
+
+    # 注入 GLM_API_KEY（从 .zshrc 读取备用）
+    global GLM_API_KEY
+    if not GLM_API_KEY:
+        zshrc = Path.home() / ".zshrc"
+        if zshrc.exists():
+            for line in zshrc.read_text().split("\n"):
+                if line.startswith("export GLM_API_KEY="):
+                    GLM_API_KEY = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    (OUTPUT_DIR / "logs").mkdir(exist_ok=True)  # 强制确保日志目录存在
+    today = datetime.now().strftime("%Y-%m-%d")
+    output_path = OUTPUT_DIR / f"wisd_{today}.png"
+
+    # 选字
+    char = pick_char(args.char)
+    print(f"═══════════════════════════════════════", flush=True)
+    print(f"📜 每日箴言 · {today}", flush=True)
+    print(f"   今日字：【{char}】", flush=True)
+    print(f"═══════════════════════════════════════", flush=True)
+
+    if args.dry_run:
+        print("[DRY-RUN] 结束", flush=True)
+        return
+
+    # 补全模式：只补 gallery 记录，不重发 Telegram
+    if args.backfill_date:
+        backfill_date = args.backfill_date
+        bp = OUTPUT_DIR / f"wisd_{backfill_date}.png"
+        if not bp.exists():
+            print(f"[ERR] 补全失败：{bp} 不存在", flush=True)
+            sys.exit(1)
+        # 读取现有 gallery 检查是否已有
+        data = json.loads(GALLERY_DATA.read_text(encoding="utf-8")) if GALLERY_DATA.exists() else []
+        if any(e.get("date") == backfill_date for e in data):
+            print(f"[SKIP] {backfill_date} 已在 gallery 中", flush=True)
+            return
+        # 补全文案（从兜底文件或重新生成）
+        fallback = OUTPUT_DIR / f"FAILED_{backfill_date}.json"
+        if fallback.exists():
+            fb = json.loads(fallback.read_text(encoding="utf-8"))
+            captions = [fb["captions"]["v1_life"], fb["captions"]["v2_opinion"], fb["captions"]["v3_quote"]]
+            print(f"[BACKFILL] 使用兜底文案", flush=True)
+        else:
+            captions = generate_captions_llm(char)
+            print(f"[BACKFILL] 重新生成文案", flush=True)
+        save_gallery_data(char, captions, bp)
+        print(f"✅ 补全完成: {backfill_date} -> 字【{char}】", flush=True)
+        return
+
+    # 生成文案（始终生成，不管图片是否已存在）
+    captions = generate_captions_llm(char)
+
+    if args.caption_only:
+        print(f"\n✍️ 文案预览：", flush=True)
+        labels = ["生活分享", "观点输出", "金句"]
+        for label, text in zip(labels, captions):
+            print(f"\n【{label}】\n{text}", flush=True)
+        return
+
+    # 检查是否已生成图片
+    if output_path.exists() and output_path.stat().st_size > 1000:
+        print(f"[SKIP] 今日图片已生成: {output_path}", flush=True)
+    else:
+        # 生成图片
+        if not generate_image(char, output_path):
+            sys.exit(1)
+
+    # 发送 Telegram（即使失败也继续保存 gallery）
+    print(f"[3/4] 发送到 Telegram...", flush=True)
+    try:
+        tg_ok, tg_failures = send_telegram(output_path, char, captions)
+    except Exception as e:
+        print(f"[ERR] Telegram 发送异常: {e}", flush=True)
+        tg_ok, tg_failures = False, [str(e)]
+
+    # 保存画廊数据（即使 Telegram 失败也保存，图片本地已有）
+    try:
+        save_gallery_data(char, captions, output_path)
+    except Exception as e:
+        print(f"[ERR] 保存 gallery 失败: {e}", flush=True)
+
+    # 部署静态站（best-effort）
+    print("[5/5] 重新构建并部署静态站...", flush=True)
+    try:
+        deploy_static_site()
+    except Exception as e:
+        print(f"[DEPLOY-ERR] {e}", flush=True)
+
+    # 记录
+    try:
+        record_char(char, captions)
+    except Exception as e:
+        print(f"[ERR] 记录 MEM 失败: {e}", flush=True)
+
+    # 总结
+    print(f"\n═══════════════════════════════════════", flush=True)
+    if tg_ok:
+        print(f"✅ 每日箴言完成！字=【{char}】 Telegram 发送成功", flush=True)
+    else:
+        print(f"⚠️ 每日箴言完成（本地）！字=【{char}】", flush=True)
+        print(f"   Telegram 发送失败 ({len(tg_failures)} 个错误)", flush=True)
+        print(f"   Gallery 已保存，下次 cron 可重试", flush=True)
+    print(f"═══════════════════════════════════════", flush=True)
+
+    # Telegram 失败不中断 cron（本地已有图片）
+    if not tg_ok:
+        sys.exit(0)  # 不告警，依赖下次重试或人工补发
+
+
+if __name__ == "__main__":
+    main()

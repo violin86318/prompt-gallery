@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>提示词画廊 · Admin</title>
+<style>
+:root {
+  --bg0: #f7f5f2; --bg1: #fff; --bg2: #faf8f5; --bg3: #f0ece7;
+  --text0: #3a3530; --text1: #6a655e; --text2: #a09890;
+  --gold: #c4a87a; --gold-dim: rgba(196,168,122,0.1);
+  --blue: #6495ed; --blue-dim: rgba(100,149,237,0.08);
+  --red: #c06060; --red-dim: rgba(192,96,96,0.08);
+  --green: #5a9a6a; --green-dim: rgba(90,154,106,0.08);
+  --border: #e8e4df;
+  --r: 8px;
+  --font-thin: 200; --font-light: 300; --font-regular: 400;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; background:var(--bg0); color:var(--text0); font-family:-apple-system,'Noto Sans SC',sans-serif; font-size:13px; font-weight:var(--font-light); }
+
+/* Layout */
+.app { display:flex; height:100vh; }
+.sidebar { width:300px; background:var(--bg1); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+/* Sidebar */
+.sb-header { padding:14px 16px; border-bottom:1px solid var(--border); }
+.sb-title { font-size:14px; font-weight:var(--font-regular); color:var(--gold); margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
+.sb-title a { font-size:11px; color:var(--text2); text-decoration:none; font-weight:var(--font-thin); }
+.sb-search { width:100%; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:7px 10px; color:var(--text0); font-size:12px; outline:none; font-weight:var(--font-light); }
+.sb-search:focus { border-color:var(--gold); }
+
+/* Stats bar */
+.sb-stats { display:flex; gap:8px; padding:10px 16px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.sb-stat { font-size:10px; color:var(--text2); }
+.sb-stat b { color:var(--gold); font-weight:var(--font-regular); }
+
+/* Song list */
+.sb-list { flex:1; overflow-y:auto; }
+.sb-item { display:flex; align-items:center; gap:10px; padding:10px 16px; cursor:pointer; border-bottom:1px solid rgba(0,0,0,.03); transition:background .15s; }
+.sb-item:hover { background:var(--bg2); }
+.sb-item.active { background:var(--gold-dim); }
+.sb-item-num { font-family:'SF Mono',monospace; font-size:10px; color:var(--text2); width:28px; text-align:right; flex-shrink:0; }
+.sb-item-info { flex:1; min-width:0; }
+.sb-item-title { font-size:12px; font-weight:var(--font-regular); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sb-item-sub { font-size:10px; color:var(--text2); margin-top:2px; }
+.sb-item-badges { display:flex; gap:4px; margin-top:4px; }
+.badge { font-size:9px; padding:1px 5px; border-radius:4px; font-weight:var(--font-regular); }
+.badge-img { background:var(--green-dim); color:var(--green); }
+.badge-noimg { background:var(--red-dim); color:var(--red); }
+.badge-cat { background:var(--blue-dim); color:var(--blue); }
+
+/* Main content */
+.main-header { padding:14px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.main-title { font-size:16px; font-weight:var(--font-regular); }
+.main-actions { display:flex; gap:6px; }
+
+/* Tab bar */
+.tab-bar { display:none; border-bottom:1px solid var(--border); padding:0 20px; }
+.tab { padding:10px 16px; font-size:11px; color:var(--text2); cursor:pointer; border-bottom:2px solid transparent; transition:all .15s; font-weight:var(--font-light); }
+.tab:hover { color:var(--text0); }
+.tab.active { color:var(--gold); border-bottom-color:var(--gold); font-weight:var(--font-regular); }
+
+.tab-content { flex:1; overflow-y:auto; padding:20px; }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+/* Buttons */
+.btn { padding:6px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg1); color:var(--text0); font-size:11px; cursor:pointer; transition:all .15s; display:inline-flex; align-items:center; gap:5px; font-weight:var(--font-light); }
+.btn:hover { background:var(--bg3); border-color:var(--gold); }
+.btn-primary { background:var(--gold-dim); border-color:var(--gold); color:var(--gold); }
+.btn-danger { background:var(--red-dim); border-color:var(--red); color:var(--red); }
+.btn-success { background:var(--green-dim); border-color:var(--green); color:var(--green); }
+.btn-sm { padding:4px 10px; font-size:10px; }
+
+/* Forms */
+.form-group { margin-bottom:16px; }
+.form-label { font-size:10px; color:var(--text2); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; display:block; font-weight:var(--font-regular); }
+.form-input, .form-textarea, .form-select { width:100%; background:var(--bg1); border:1px solid var(--border); border-radius:8px; padding:8px 10px; color:var(--text0); font-size:12px; outline:none; font-family:inherit; font-weight:var(--font-light); }
+.form-input:focus, .form-textarea:focus { border-color:var(--gold); }
+.form-textarea { min-height:100px; resize:vertical; line-height:1.7; }
+.form-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+.form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+/* Image Grid */
+.image-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; }
+.image-card { background:var(--bg1); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; transition:all .2s; }
+.image-card:hover { border-color:var(--gold); box-shadow:0 2px 12px rgba(196,168,122,.1); }
+.image-card img { width:100%; aspect-ratio:1; object-fit:cover; display:block; cursor:pointer; background:var(--bg3); }
+.image-card-info { padding:8px 10px; }
+.image-card-name { font-size:11px; font-weight:var(--font-regular); margin-bottom:2px; }
+.image-card-size { font-size:10px; color:var(--text2); }
+.image-card-actions { display:flex; gap:4px; margin-top:6px; }
+
+/* Dashboard */
+.dash-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:24px; }
+.dash-card { background:var(--bg1); border:1px solid var(--border); border-radius:var(--r); padding:16px; }
+.dash-card-label { font-size:10px; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+.dash-card-value { font-size:24px; font-weight:var(--font-thin); color:var(--gold); }
+.dash-card-sub { font-size:10px; color:var(--text2); margin-top:4px; }
+
+/* Category bar */
+.cat-bar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:20px; }
+.cat-chip { font-size:10px; padding:4px 10px; border-radius:20px; background:var(--bg1); border:1px solid var(--border); color:var(--text1); }
+.cat-chip b { color:var(--gold); font-weight:var(--font-regular); }
+
+/* Missing list */
+.missing-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(60px,1fr)); gap:6px; }
+.missing-num { text-align:center; padding:6px; border-radius:6px; background:var(--red-dim); color:var(--red); font-family:'SF Mono',monospace; font-size:11px; }
+
+/* Toast */
+.toast { position:fixed; bottom:20px; right:20px; padding:10px 18px; border-radius:8px; background:var(--text0); color:var(--bg0); font-size:12px; transform:translateY(100px); transition:transform .3s; z-index:9999; font-weight:var(--font-light); }
+.toast.show { transform:translateY(0); }
+
+/* Image overlay */
+.img-overlay { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:999; display:none; align-items:center; justify-content:center; cursor:pointer; }
+.img-overlay.show { display:flex; }
+.img-overlay img { max-width:90vw; max-height:90vh; object-fit:contain; border-radius:8px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+/* Section header */
+.section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.section-title { font-size:13px; font-weight:var(--font-regular); color:var(--text0); }
+
+/* Add form */
+.add-form { background:var(--bg1); border:1px solid var(--border); border-radius:var(--r); padding:20px; margin-bottom:20px; display:none; }
+.add-form.show { display:block; }
+
+/* Empty state */
+.empty-state { text-align:center; padding:40px; color:var(--text2); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-header">
+      <div class="sb-title">
+        🎨 提示词画廊 · Admin
+        <span>
+          <a href="/wisdom-admin" style="margin-right:8px">📜 箴言管理</a>
+          <a href="/">← 画廊</a>
+        </span>
+      </div>
+      <input class="sb-search" id="searchInput" placeholder="搜索标题 / 编号 / 分类..." oninput="filterPrompts()">
+    </div>
+    <div class="sb-stats" id="statsBar">
+      <span class="sb-stat">共 <b id="totalCount">-</b> 条</span>
+      <span class="sb-stat">有图 <b id="withImgCount">-</b></span>
+      <span class="sb-stat">缺图 <b id="missingCount">-</b></span>
+    </div>
+    <div class="sb-list" id="promptList"></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="main-header">
+      <div class="main-title" id="mainTitle">提示词画廊 · 管理后台</div>
+      <div class="main-actions">
+        <button class="btn btn-sm" onclick="showAddForm()">➕ 添加</button>
+        <button class="btn btn-sm btn-success" onclick="rebuildSite()">🔨 重建网站</button>
+        <button class="btn btn-sm" onclick="scanImages()">📷 扫描图片</button>
+        <button class="btn btn-sm" onclick="exportJSON()">📥 导出 JSON</button>
+      </div>
+    </div>
+
+    <!-- Add Form -->
+    <div class="add-form" id="addForm">
+      <div class="section-header">
+        <span class="section-title">添加新提示词</span>
+        <button class="btn btn-sm" onclick="hideAddForm()">取消</button>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group"><label class="form-label">标题</label><input class="form-input" id="addTitle" placeholder="提示词标题"></div>
+        <div class="form-group"><label class="form-label">分类</label><select class="form-select" id="addCategory">
+          <option>美学实验</option><option>海报设计</option><option>字体创意设计</option>
+          <option>电商/产品</option><option>摄影/写实</option><option>品牌设计</option><option>其他</option>
+        </select></div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group"><label class="form-label">来源链接</label><input class="form-input" id="addPostUrl" placeholder="https://x.com/..."></div>
+        <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="addDate" type="date"></div>
+      </div>
+      <div class="form-group"><label class="form-label">汤底（完整提示词）</label><textarea class="form-textarea" id="addBroth" rows="6" placeholder="粘贴完整提示词文本..."></textarea></div>
+      <div class="form-group"><label class="form-label">示例佐料</label><textarea class="form-textarea" id="addSpice" rows="3" placeholder="本次主题：...&#10;比例 16:9"></textarea></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="submitNewPrompt()">✅ 保存</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-bar" id="tabBar">
+      <div class="tab active" data-tab="overview" onclick="switchTab('overview')">📋 概览</div>
+      <div class="tab" data-tab="images" onclick="switchTab('images')">🖼️ 测试图</div>
+      <div class="tab" data-tab="edit" onclick="switchTab('edit')">✏️ 编辑</div>
+      <div class="tab" data-tab="text" onclick="switchTab('text')">📝 提示词</div>
+      <div class="tab" data-tab="dashboard" onclick="switchTab('dashboard')">📊 仪表盘</div>
+    </div>
+
+    <div class="tab-content" id="tabContent">
+      <!-- Default: dashboard -->
+      <div id="dashboardPanel"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="img-overlay" id="imgOverlay" onclick="this.classList.remove('show')">
+  <img id="imgOverlayImg" src="">
+</div>
+
+<script>
+// ── State ──
+let allPrompts = [];
+let currentPrompt = null;
+let currentTab = 'dashboard';
+let editBuffer = {};
+
+// ── Init ──
+async function init() {
+  await loadPromptList();
+  renderDashboard();
+}
+
+async function loadPromptList() {
+  try {
+    const resp = await fetch('/api/prompts');
+    allPrompts = await resp.json();
+    renderPromptList();
+    updateStats();
+  } catch(e) {
+    showToast('加载失败: ' + e.message, 'error');
+  }
+}
+
+function renderPromptList() {
+  const q = (document.getElementById('searchInput').value || '').toLowerCase();
+  const el = document.getElementById('promptList');
+  const filtered = allPrompts.filter(p => {
+    if (!q) return true;
+    return p.title.toLowerCase().includes(q)
+      || String(p.number).includes(q)
+      || p.category.toLowerCase().includes(q);
+  });
+
+  el.innerHTML = filtered.map(p => {
+    const isActive = currentPrompt && currentPrompt.number === p.number;
+    const badges = [];
+    if (p.testCount >= 2) badges.push('<span class="badge badge-img">双版本</span>');
+    else if (p.testCount === 1) badges.push('<span class="badge badge-img">单版本</span>');
+    else badges.push('<span class="badge badge-noimg">无图</span>');
+
+    return `<div class="sb-item ${isActive ? 'active' : ''}" onclick="selectPrompt(${p.number})">
+      <div class="sb-item-num">#${p.number}</div>
+      <div class="sb-item-info">
+        <div class="sb-item-title">${esc(p.title)}</div>
+        <div class="sb-item-sub">${esc(p.category)} · ${esc(p.date || '')}</div>
+        <div class="sb-item-badges">${badges.join('')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterPrompts() { renderPromptList(); }
+
+function updateStats() {
+  document.getElementById('totalCount').textContent = allPrompts.length;
+  document.getElementById('withImgCount').textContent = allPrompts.filter(p => p.hasTests).length;
+  document.getElementById('missingCount').textContent = allPrompts.filter(p => !p.hasTests).length;
+}
+
+// ── Select Prompt ──
+async function selectPrompt(number) {
+  try {
+    const resp = await fetch(`/api/prompts/${number}`);
+    currentPrompt = await resp.json();
+    editBuffer = {};
+    document.getElementById('mainTitle').textContent = `#${currentPrompt.number} ${currentPrompt.title}`;
+    document.getElementById('tabBar').style.display = 'flex';
+    document.getElementById('addForm').classList.remove('show');
+    renderPromptList();
+    renderCurrentTab();
+  } catch(e) {
+    showToast('加载失败: ' + e.message, 'error');
+  }
+}
+
+// ── Tabs ──
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  renderCurrentTab();
+}
+
+function renderCurrentTab() {
+  const el = document.getElementById('tabContent');
+  switch(currentTab) {
+    case 'overview': renderOverviewTab(el); break;
+    case 'images': renderImagesTab(el); break;
+    case 'edit': renderEditTab(el); break;
+    case 'text': renderTextTab(el); break;
+    case 'dashboard': renderDashboard(); break;
+  }
+}
+
+// ── Dashboard Tab ──
+async function renderDashboard() {
+  try {
+    const resp = await fetch('/api/prompts/stats');
+    const stats = await resp.json();
+    const el = document.getElementById('tabContent');
+
+    const catChips = Object.entries(stats.categories).map(([k,v]) =>
+      `<span class="cat-chip">${esc(k)} <b>${v}</b></span>`
+    ).join('');
+
+    const nanoMissing = stats.nanoBanana2.missing.slice(0, 30).map(n =>
+      `<span class="missing-num">${n}</span>`
+    ).join('');
+    const bizyairMissing = stats.gptImage2.missing.slice(0, 30).map(n =>
+      `<span class="missing-num">${n}</span>`
+    ).join('');
+
+    const latestHtml = stats.latest.map(p =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">
+        <span style="cursor:pointer;color:var(--gold)" onclick="selectPrompt(${p.number})">#${p.number} ${esc(p.title)}</span>
+        <span style="font-size:10px;color:var(--text2)">${p.date}</span>
+      </div>`
+    ).join('');
+
+    el.innerHTML = `
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-card-label">总提示词</div>
+          <div class="dash-card-value">${stats.total}</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">Nano Banana 2</div>
+          <div class="dash-card-value">${stats.nanoBanana2.count}<span style="font-size:12px;color:var(--text2)">/${stats.nanoBanana2.total}</span></div>
+          <div class="dash-card-sub">缺 ${stats.nanoBanana2.missing.length} 张</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">GPT Image 2</div>
+          <div class="dash-card-value">${stats.gptImage2.count}<span style="font-size:12px;color:var(--text2)">/${stats.gptImage2.total}</span></div>
+          <div class="dash-card-sub">缺 ${stats.gptImage2.missing.length} 张</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">分类</div>
+          <div class="dash-card-value">${Object.keys(stats.categories).length}</div>
+        </div>
+      </div>
+
+      <div class="section-header"><span class="section-title">分类分布</span></div>
+      <div class="cat-bar" style="margin-bottom:24px">${catChips}</div>
+
+      <div class="section-header"><span class="section-title">最近添加</span></div>
+      <div style="margin-bottom:24px">${latestHtml}</div>
+
+      ${nanoMissing ? `<div class="section-header"><span class="section-title">Nano Banana 2 缺失</span><span style="font-size:10px;color:var(--text2)">${stats.nanoBanana2.missing.length} 张</span></div>
+      <div class="missing-grid" style="margin-bottom:20px">${nanoMissing}</div>` : ''}
+
+      ${bizyairMissing ? `<div class="section-header"><span class="section-title">GPT Image 2 缺失</span><span style="font-size:10px;color:var(--text2)">${stats.gptImage2.missing.length} 张</span></div>
+      <div class="missing-grid" style="margin-bottom:20px">${bizyairMissing}</div>` : ''}
+    `;
+  } catch(e) {
+    showToast('加载仪表盘失败: ' + e.message, 'error');
+  }
+}
+
+// ── Overview Tab ──
+function renderOverviewTab(el) {
+  if (!currentPrompt) return;
+  const p = currentPrompt;
+  const structure = p.structure || {};
+  const tests = p.tests || {};
+  const hasFullText = structure.full && structure.full.length > 10;
+
+  el.innerHTML = `
+    <div class="form-row-2" style="margin-bottom:20px">
+      <div class="dash-card">
+        <div class="dash-card-label">编号</div>
+        <div class="dash-card-value">#${p.number}</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-label">热度</div>
+        <div class="dash-card-value" style="font-size:18px">${esc(p.heat || '-')}</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">标题</label>
+      <div style="font-size:15px;font-weight:var(--font-regular)">${esc(p.title)}</div>
+    </div>
+
+    <div class="form-row-2">
+      <div class="form-group"><label class="form-label">分类</label><div>${esc(p.category)}</div></div>
+      <div class="form-group"><label class="form-label">日期</label><div>${esc(p.date || '-')}</div></div>
+    </div>
+
+    <div class="form-group"><label class="form-label">结构描述</label><div style="color:var(--text1)">${esc(p.structureDesc || '-')}</div></div>
+    <div class="form-group"><label class="form-label">创新点</label><div style="color:var(--text1)">${esc(p.innovation || '-')}</div></div>
+    <div class="form-group"><label class="form-label">应用场景</label><div style="color:var(--text1)">${esc(p.scenes || '-')}</div></div>
+    <div class="form-group"><label class="form-label">示例佐料</label><div style="color:var(--text1);white-space:pre-wrap">${esc(p.exampleSpice || '-')}</div></div>
+
+    ${p.postUrl ? `<div class="form-group"><label class="form-label">来源</label><a href="${esc(p.postUrl)}" target="_blank" style="color:var(--gold);text-decoration:none;font-size:11px">${esc(p.postUrl)}</a></div>` : ''}
+
+    <div class="form-group"><label class="form-label">提示词长度</label>
+      <div>${hasFullText ? structure.full.length + ' 字' : '未填写'}</div>
+    </div>
+
+    <div class="form-group"><label class="form-label">测试图</label>
+      <div>${Object.keys(tests).length > 0 ? Object.entries(tests).map(([k,v]) =>
+        `<span class="badge badge-img" style="margin-right:4px">${k} (${v.size})</span>`
+      ).join('') : '<span class="badge badge-noimg">无测试图</span>'}</div>
+    </div>
+  `;
+}
+
+// ── Images Tab ──
+function renderImagesTab(el) {
+  if (!currentPrompt) return;
+  const p = currentPrompt;
+  const tests = p.tests || {};
+
+  let html = `<div style="margin-bottom:16px;display:flex;align-items:center;gap:8px">
+    <strong>测试图 (${Object.keys(tests).length})</strong>
+  </div>`;
+
+  if (Object.keys(tests).length === 0) {
+    html += '<div class="empty-state">暂无测试图</div>';
+  } else {
+    html += '<div class="image-grid">';
+    for (const [model, info] of Object.entries(tests)) {
+      html += `<div class="image-card">
+        <img src="${info.image}" alt="${esc(model)}" onclick="previewImage('${info.image}')">
+        <div class="image-card-info">
+          <div class="image-card-name">${esc(model)}</div>
+          <div class="image-card-size">${info.size}</div>
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  // Generate buttons
+  const structure = p.structure || {};
+  const broth = structure.broth || '';
+  const full = structure.full || '';
+  const genPrompt = full || broth;
+
+  html += `
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="section-header"><span class="section-title">生成测试图</span></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn btn-primary btn-sm" onclick="generateImage(${p.number}, 'gpt-image')" ${!genPrompt ? 'disabled' : ''}>
+          🎨 GPT Image 2
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="generateImage(${p.number}, 'banana')" ${!genPrompt ? 'disabled' : ''}>
+          🍌 Nano Banana 2
+        </button>
+      </div>
+      ${!genPrompt ? '<div style="font-size:11px;color:var(--red)">⚠️ 缺少提示词文本，无法生成</div>' : ''}
+    </div>
+  `;
+
+  el.innerHTML = html;
+}
+
+// ── Edit Tab ──
+function renderEditTab(el) {
+  if (!currentPrompt) return;
+  const p = currentPrompt;
+
+  el.innerHTML = `
+    <div class="form-row-2">
+      <div class="form-group"><label class="form-label">标题</label>
+        <input class="form-input" id="editTitle" value="${esc(p.title)}" onchange="editField('title', this.value)"></div>
+      <div class="form-group"><label class="form-label">分类</label>
+        <select class="form-select" id="editCategory" onchange="editField('category', this.value)">
+          ${['美学实验','海报设计','字体创意设计','电商/产品','摄影/写实','品牌设计','其他'].map(c =>
+            `<option ${p.category===c?'selected':''}>${c}</option>`
+          ).join('')}
+        </select></div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-group"><label class="form-label">热度</label>
+        <select class="form-select" onchange="editField('heat', this.value)">
+          ${['★','★★','★★★','★★★★','★★★★★'].map(h =>
+            `<option ${p.heat===h?'selected':''}>${h}</option>`
+          ).join('')}
+        </select></div>
+      <div class="form-group"><label class="form-label">类型</label>
+        <input class="form-input" id="editType" value="${esc(p.type || '')}" onchange="editField('type', this.value)"></div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-group"><label class="form-label">日期</label>
+        <input class="form-input" type="date" id="editDate" value="${esc(p.date || '')}" onchange="editField('date', this.value)"></div>
+      <div class="form-group"><label class="form-label">来源链接</label>
+        <input class="form-input" id="editPostUrl" value="${esc(p.postUrl || '')}" onchange="editField('postUrl', this.value)"></div>
+    </div>
+    <div class="form-group"><label class="form-label">结构描述</label>
+      <input class="form-input" id="editStructureDesc" value="${esc(p.structureDesc || '')}" onchange="editField('structureDesc', this.value)"></div>
+    <div class="form-group"><label class="form-label">创新点</label>
+      <input class="form-input" id="editInnovation" value="${esc(p.innovation || '')}" onchange="editField('innovation', this.value)"></div>
+    <div class="form-group"><label class="form-label">应用场景</label>
+      <input class="form-input" id="editScenes" value="${esc(p.scenes || '')}" onchange="editField('scenes', this.value)"></div>
+    <div class="form-group"><label class="form-label">示例佐料</label>
+      <textarea class="form-textarea" id="editExampleSpice" rows="3" onchange="editField('exampleSpice', this.value)">${esc(p.exampleSpice || '')}</textarea></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-primary" onclick="saveEdits()">💾 保存修改</button>
+      <button class="btn btn-danger" onclick="deletePrompt(${p.number})">🗑️ 删除</button>
+    </div>
+  `;
+}
+
+// ── Text Tab ──
+function renderTextTab(el) {
+  if (!currentPrompt) return;
+  const p = currentPrompt;
+  const structure = p.structure || {};
+
+  el.innerHTML = `
+    <div class="form-group">
+      <label class="form-label">完整提示词 (full) — ${structure.full ? structure.full.length + ' 字' : '未填写'}</label>
+      <textarea class="form-textarea" id="textFull" rows="8" style="min-height:200px;font-size:11px;line-height:1.8">${esc(structure.full || '')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">汤底 (broth) — ${structure.broth ? structure.broth.length + ' 字' : '未填写'}</label>
+      <textarea class="form-textarea" id="textBroth" rows="6" style="font-size:11px;line-height:1.8">${esc(structure.broth || '')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">佐料 (spice)</label>
+      <textarea class="form-textarea" id="textSpice" rows="3" style="font-size:11px;line-height:1.8">${esc(structure.spice || '')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">药引子 (catalyst)</label>
+      <textarea class="form-textarea" id="textCatalyst" rows="2" style="font-size:11px;line-height:1.8">${esc(structure.catalyst || '')}</textarea>
+    </div>
+    <button class="btn btn-primary" onclick="saveText()">💾 保存提示词</button>
+  `;
+}
+
+// ── Actions ──
+
+async function saveEdits() {
+  if (!currentPrompt || !editBuffer) return;
+  try {
+    const resp = await fetch(`/api/prompts/${currentPrompt.number}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(editBuffer),
+    });
+    const result = await resp.json();
+    if (result.ok) {
+      currentPrompt = result.prompt;
+      showToast('已保存');
+      editBuffer = {};
+      await loadPromptList();
+    } else {
+      showToast('保存失败: ' + (result.error || ''), 'error');
+    }
+  } catch(e) {
+    showToast('保存失败: ' + e.message, 'error');
+  }
+}
+
+async function saveText() {
+  if (!currentPrompt) return;
+  const structure = {
+    ...currentPrompt.structure,
+    full: document.getElementById('textFull').value,
+    broth: document.getElementById('textBroth').value,
+    spice: document.getElementById('textSpice').value,
+    catalyst: document.getElementById('textCatalyst').value,
+  };
+  try {
+    const resp = await fetch(`/api/prompts/${currentPrompt.number}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ structure }),
+    });
+    const result = await resp.json();
+    if (result.ok) {
+      currentPrompt = result.prompt;
+      showToast('提示词已保存');
+    } else {
+      showToast('保存失败: ' + (result.error || ''), 'error');
+    }
+  } catch(e) {
+    showToast('保存失败: ' + e.message, 'error');
+  }
+}
+
+function editField(key, value) {
+  editBuffer[key] = value;
+}
+
+async function deletePrompt(number) {
+  if (!confirm(`确定删除 #${number}？此操作不可恢复。`)) return;
+  try {
+    const resp = await fetch(`/api/prompts/${number}`, { method: 'DELETE' });
+    const result = await resp.json();
+    if (result.ok) {
+      showToast('已删除');
+      currentPrompt = null;
+      document.getElementById('mainTitle').textContent = '提示词画廊 · 管理后台';
+      document.getElementById('tabBar').style.display = 'none';
+      await loadPromptList();
+      renderDashboard();
+    }
+  } catch(e) {
+    showToast('删除失败: ' + e.message, 'error');
+  }
+}
+
+async function generateImage(number, model) {
+  const modelName = model === 'gpt-image' ? 'GPT Image 2' : 'Nano Banana 2';
+  showToast(`正在生成 ${modelName}...`, 'success');
+  try {
+    // Get full prompt text
+    const structure = currentPrompt.structure || {};
+    let promptText = structure.full || structure.broth || '';
+    // For banana, truncate if too long
+    if (model === 'banana' && promptText.length > 2000) {
+      promptText = structure.broth || promptText.slice(0, 2000);
+    }
+    if (model === 'gpt-image' && promptText.length > 2000) {
+      promptText = promptText.slice(0, 2000);
+    }
+
+    const resp = await fetch('/api/generate-image', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ number, model, prompt: promptText }),
+    });
+    const result = await resp.json();
+    if (result.ok) {
+      showToast(`${modelName} 生成成功！${result.size}`);
+      await selectPrompt(number);  // reload
+      renderImagesTab(document.getElementById('tabContent'));
+    } else {
+      showToast('生成失败: ' + (result.error || ''), 'error');
+    }
+  } catch(e) {
+    showToast('生成失败: ' + e.message, 'error');
+  }
+}
+
+async function rebuildSite() {
+  showToast('正在重建网站...', 'success');
+  try {
+    const resp = await fetch('/api/rebuild', { method: 'POST' });
+    const result = await resp.json();
+    if (result.ok) {
+      showToast('网站重建完成！');
+    } else {
+      showToast('重建失败: ' + (result.stderr || result.error || ''), 'error');
+    }
+  } catch(e) {
+    showToast('重建失败: ' + e.message, 'error');
+  }
+}
+
+async function scanImages() {
+  showToast('正在扫描图片...', 'success');
+  try {
+    const resp = await fetch('/api/scan-images', { method: 'POST' });
+    const result = await resp.json();
+    if (result.ok) {
+      showToast(`扫描完成：更新 ${result.updated} 条`);
+      await loadPromptList();
+    }
+  } catch(e) {
+    showToast('扫描失败: ' + e.message, 'error');
+  }
+}
+
+function exportJSON() {
+  window.open('/api/export', '_blank');
+}
+
+function showAddForm() {
+  document.getElementById('addForm').classList.toggle('show');
+  document.getElementById('addDate').value = new Date().toISOString().slice(0, 10);
+}
+
+function hideAddForm() {
+  document.getElementById('addForm').classList.remove('show');
+}
+
+async function submitNewPrompt() {
+  const data = {
+    title: document.getElementById('addTitle').value,
+    category: document.getElementById('addCategory').value,
+    postUrl: document.getElementById('addPostUrl').value,
+    date: document.getElementById('addDate').value,
+    structure: {
+      broth: document.getElementById('addBroth').value,
+      full: document.getElementById('addBroth').value,
+      spice: '',
+      catalyst: '',
+    },
+    exampleSpice: document.getElementById('addSpice').value,
+  };
+  if (!data.title) { showToast('请输入标题', 'error'); return; }
+  try {
+    const resp = await fetch('/api/prompts', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data),
+    });
+    const result = await resp.json();
+    if (result.ok) {
+      showToast(`已添加 #${result.prompt.number}`);
+      hideAddForm();
+      await loadPromptList();
+      selectPrompt(result.prompt.number);
+    } else {
+      showToast('添加失败: ' + (result.error || ''), 'error');
+    }
+  } catch(e) {
+    showToast('添加失败: ' + e.message, 'error');
+  }
+}
+
+// ── Utilities ──
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showToast(msg, type='success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast toast-${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function previewImage(src) {
+  document.getElementById('imgOverlayImg').src = src;
+  document.getElementById('imgOverlay').classList.add('show');
+}
+
+// ── Start ──
+init();
+</script>
+</body>
+</html>

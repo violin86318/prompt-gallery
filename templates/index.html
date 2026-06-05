@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>提示词画廊 · 小小东</title>
+<style>
+/* === V3 清透呼吸美学 === */
+:root {
+  --bg: #f7f5f2;
+  --bg-card: #ffffff;
+  --bg-hover: #f5f2ef;
+  --border: #e8e4df;
+  --text: #5a5550;
+  --text-muted: #a09890;
+  --text-meta: #b8b0a8;
+  --broth: #f5f0eb;
+  --broth-border: #c4a87a;
+  --spice: #eff1f0;
+  --spice-border: #8ba8a4;
+  --catalyst: #f2eeeb;
+  --catalyst-border: #c0988a;
+  --avoid-text: #b07070;
+  --accent: #c4a87a;
+  --accent-colophon: #c4bba8;
+  --serif: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Paper fiber noise texture */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* --- Layout --- */
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* --- Header --- */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 24px 0 12px;
+}
+.header__title {
+  font-family: var(--serif);
+  font-weight: 200;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+.header__stats {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-meta);
+}
+.header__line {
+  border: none;
+  border-top: 1px solid var(--accent);
+  opacity: 0.5;
+}
+
+/* --- Hero --- */
+.hero {
+  padding: 48px 0 32px;
+  text-align: center;
+}
+.hero__quote {
+  font-family: var(--serif);
+  font-weight: 200;
+  font-size: 16px;
+  line-height: 2;
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+.hero__author {
+  font-family: var(--serif);
+  font-weight: 200;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+.hero__today {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.hero__today-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-meta);
+}
+.hero__today-title {
+  font-family: var(--serif);
+  font-weight: 200;
+  font-size: 14px;
+  color: var(--text);
+  margin-top: 4px;
+}
+.hero__today-sub {
+  font-family: var(--serif);
+  font-weight: 200;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* --- Filter --- */
+.filter {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 24px 0;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--text-muted);
+}
+.filter__item {
+  cursor: pointer;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  position: relative;
+  transition: color 0.2s;
+}
+.filter__item:hover,
+.filter__item--active {
+  color: var(--text);
+}
+.filter__item--active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--accent);
+}
+.filter__sep {
+  color: var(--accent);
+  opacity: 0.5;
+  user-select: none;
+}
+
+/* --- Date divider --- */
+.date-divider {
+  text-align: center;
+  padding: 32px 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+  opacity: 0.7;
+  letter-spacing: 0.1em;
+}
+
+/* --- Card grid --- */
+.grid {
+  columns: 3;
+  column-gap: 24px;
+}
+@media (max-width: 1024px) { .grid { columns: 2; } }
+@media (max-width: 640px) { .grid { columns: 1; } }
+
+.card {
+  break-inside: avoid;
+  margin-bottom: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  transition: background 0.2s;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.card:hover {
+  background: var(--bg-hover);
+}
+.card__img {
+  width: 100%;
+  display: block;
+}
+.card__body {
+  padding: 16px;
+}
+.card__num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-meta);
+}
+.card__title {
+  font-family: var(--serif);
+  font-weight: 200;
+  font-size: 15px;
+  color: var(--text);
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+}
+.card__line {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}
+.card__meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.card__noimg {
+  aspect-ratio: 3/2;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-weight: 200;
+  font-size: 13px;
+  color: var(--text-meta);
+}
+
+/* --- Footer --- */
+.footer {
+  text-align: center;
+  padding: 48px 0 24px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--accent-colophon);
+  letter-spacing: 0.08em;
+}
+.footer a {
+  color: inherit;
+  text-decoration: none;
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Header -->
+  <header class="header">
+    <span class="header__title">提示词画廊</span>
+    <span class="header__stats">{{ total }} · {{ with_images }} · ongoing</span>
+  </header>
+  <hr class="header__line">
+
+  <!-- Collection Tabs -->
+  {% if collections and collections|length > 1 %}
+  <div class="filter" style="padding-bottom:0;">
+    {% for coll in collections %}
+    <button class="filter__item {% if loop.first %}filter__item--active{% endif %}" data-coll="{{ coll.id }}">{{ coll.author }}</button>
+    {% if not loop.last %}<span class="filter__sep">·</span>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Hero -->
+  <div class="hero" data-collection="xiaoxiaodong">
+    <div class="hero__quote">「提示词写作的核心不是技巧，<br>而是敢于想象 + 敢于实施」</div>
+    <div class="hero__author">— 小小东</div>
+    {% if latest and latest.collection == 'xiaoxiaodong' %}
+    <div class="hero__today">
+      <div class="hero__today-label">today · #{{ latest.number }} · {{ latest.title }}</div>
+      <div class="hero__today-sub">窗外风景会为你尽情演绎</div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="hero" data-collection="adrian-punk" style="display:none">
+    <div class="hero__quote">「中文字体提示词，不是让 AI 写几个字，<br>而是让 AI 设计一组字」</div>
+    <div class="hero__author">— Adrian Punk · 《2026 文字类提示词设计指南》</div>
+  </div>
+
+  <!-- Filter -->
+  <div class="filter">
+    <button class="filter__item filter__item--active" data-cat="全部">全部</button>
+    <span class="filter__sep">·</span>
+    {% for cat in categories %}
+    <button class="filter__item" data-cat="{{ cat }}">{{ cat }}</button>
+    {% if not loop.last %}<span class="filter__sep">·</span>{% endif %}
+    {% endfor %}
+  </div>
+
+  <!-- Cards -->
+  <div class="grid" id="grid">
+    {% for prompt in prompts %}
+    <a class="card" href="prompt/{{ prompt.slug }}.html" data-category="{{ prompt.category }}" data-collection="{{ prompt.collection or 'xiaoxiaodong' }}" onclick="saveTab(this)">
+      {% if prompt.tests %}
+        {% if prompt.tests.get('GPT Image 2') %}
+        <img class="card__img" src="{{ prompt.tests['GPT Image 2'].image }}" alt="#{{ prompt.number }} {{ prompt.title }}" loading="lazy">
+        {% elif prompt.tests.get('Nano Banana 2') %}
+        <img class="card__img" src="{{ prompt.tests['Nano Banana 2'].image }}" alt="#{{ prompt.number }} {{ prompt.title }}" loading="lazy">
+        {% endif %}
+      {% elif prompt.refImage %}
+      <img class="card__img" src="{{ prompt.refImage }}" alt="#{{ prompt.number }} {{ prompt.title }}" loading="lazy">
+      {% else %}
+      <div class="card__noimg">#{{ prompt.number }}</div>
+      {% endif %}
+      <div class="card__body">
+        <div class="card__num">#{{ prompt.number }}</div>
+        <div class="card__title">{{ prompt.title }}</div>
+        <hr class="card__line">
+        <div class="card__meta">{{ prompt.category }} · {{ prompt.date[5:10] if prompt.date and prompt.date|length > 5 else '' }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <a href="https://x.com/xiaoxiaodong01" target="_blank">xiaoxiaodong01</a> · <a href="https://x.com/AdrianPunk115" target="_blank">AdrianPunk115</a> · dong · 2026
+    · <a href="/wisdom/">📜 每日箴言</a>
+  </div>
+</div>
+
+<script>
+// Collection tab switching
+let activeColl = localStorage.getItem('pg_tab') || '{{ collections[0].id if collections else "xiaoxiaodong" }}';
+
+function saveTab(el) {
+  localStorage.setItem('pg_tab', activeColl);
+}
+
+// Activate saved tab on load
+(() => {
+  const savedBtn = document.querySelector(`[data-coll="${activeColl}"]`);
+  if (savedBtn && !savedBtn.classList.contains('filter__item--active')) {
+    document.querySelectorAll('[data-coll]').forEach(b => b.classList.remove('filter__item--active'));
+    savedBtn.classList.add('filter__item--active');
+  }
+})();
+
+document.querySelectorAll('[data-coll]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-coll]').forEach(b => b.classList.remove('filter__item--active'));
+    btn.classList.add('filter__item--active');
+    activeColl = btn.dataset.coll;
+    
+    // Show/hide heroes
+    document.querySelectorAll('.hero').forEach(h => {
+      h.style.display = (h.dataset.collection === activeColl) ? '' : 'none';
+    });
+    
+    // Filter cards
+    document.querySelectorAll('.card').forEach(card => {
+      card.style.display = (card.dataset.collection === activeColl) ? '' : 'none';
+    });
+    
+    // Reset category filter to "全部"
+    document.querySelectorAll('.filter__item[data-cat]').forEach(b => b.classList.remove('filter__item--active'));
+    document.querySelector('.filter__item[data-cat="全部"]').classList.add('filter__item--active');
+    
+    // Update visible category filters
+    const visibleCats = new Set();
+    document.querySelectorAll(`.card[data-collection="${activeColl}"]`).forEach(c => visibleCats.add(c.dataset.category));
+    document.querySelectorAll('.filter__item[data-cat]').forEach(b => {
+      b.style.display = (b.dataset.cat === '全部' || visibleCats.has(b.dataset.cat)) ? '' : 'none';
+    });
+  });
+});
+
+// Category filter (scoped to active collection)
+document.querySelectorAll('.filter__item[data-cat]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter__item[data-cat]').forEach(b => b.classList.remove('filter__item--active'));
+    btn.classList.add('filter__item--active');
+    const cat = btn.dataset.cat;
+    document.querySelectorAll('.card').forEach(card => {
+      if (card.dataset.collection !== activeColl) return;
+      card.style.display = (cat === '全部' || card.dataset.category === cat) ? '' : 'none';
+    });
+  });
+});
+
+// Initialize: show only first collection's cards & categories
+(() => {
+  // Hide cards from other collections
+  document.querySelectorAll('.card').forEach(card => {
+    card.style.display = (card.dataset.collection === activeColl) ? '' : 'none';
+  });
+  // Show only active collection's categories
+  const visibleCats = new Set();
+  document.querySelectorAll(`.card[data-collection="${activeColl}"]`).forEach(c => visibleCats.add(c.dataset.category));
+  document.querySelectorAll('.filter__item[data-cat]').forEach(b => {
+    b.style.display = (b.dataset.cat === '全部' || visibleCats.has(b.dataset.cat)) ? '' : 'none';
+  });
+})();
+</script>
+</body>
+</html>
