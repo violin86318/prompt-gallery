@@ -428,11 +428,22 @@
       "elapsed": 48.6,
       "error": "",
       "ts": "2026-06-05T17:07:43.861679"
+    },
+    "adrian_40_gcli": {
+      "request_id": "e8aaa4a8-8b9e-46eb-a765-96a995a0fb2f",
+      "model": "Nano Banana 2",
+      "prompt": "“灵感爆炸”，创作者爆发体，字形夸张有张力，笔画向外扩张，局部结构放大、扭转和冲出边界，整体像创作者灵感喷发时形成的强视觉标题。",
+      "output": "/Users/wanglingwei/Library/Application Support/remio/Users/F2313D5DDFE8FCF316DC1149F06BB14B/agent/prompt-gallery/site/assets/tests/gcli_40.png",
+      "status": "ok",
+      "size_kb": 3454,
+      "elapsed": 201.0,
+      "error": "",
+      "ts": "2026-06-05T17:11:06.849894"
     }
   },
   "stats": {
-    "total": 39,
-    "success": 10,
+    "total": 40,
+    "success": 11,
     "failed": 29
   }
 }

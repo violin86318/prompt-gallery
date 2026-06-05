@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日箴言 · Admin</title>
+<style>
+:root {
+  --bg0: #faf8f5; --bg1: #fff; --bg2: #f5f2ee; --bg3: #ece8e3;
+  --text0: #4a4540; --text1: #7a756e; --text2: #b0a8a0;
+  --gold: #c4a87a; --gold-dim: rgba(196,168,122,0.08);
+  --seal: #b05040; --seal-dim: rgba(176,80,64,0.08);
+  --blue: #6495ed; --blue-dim: rgba(100,149,237,0.08);
+  --green: #5a9a6a; --green-dim: rgba(90,154,106,0.08);
+  --border: #e8e3dc;
+  --serif: "Noto Serif SC", "Songti SC", serif;
+  --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; background:var(--bg0); color:var(--text0); font-family:var(--sans); font-size:13px; font-weight:300; }
+
+/* Layout */
+.app { display:flex; height:100vh; }
+.sidebar { width:320px; background:var(--bg1); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+/* Sidebar */
+.sb-header { padding:16px; border-bottom:1px solid var(--border); }
+.sb-title { font-family:var(--serif); font-size:16px; font-weight:400; color:var(--text0); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+.sb-title a { font-size:11px; color:var(--text2); text-decoration:none; font-family:var(--sans); }
+.sb-nav { display:flex; gap:6px; }
+.sb-nav a { font-size:11px; color:var(--text2); text-decoration:none; padding:3px 8px; border-radius:4px; border:1px solid var(--border); }
+.sb-nav a:hover { border-color:var(--gold); color:var(--gold); }
+
+.sb-stats { display:flex; gap:12px; padding:10px 16px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.sb-stat { font-size:10px; color:var(--text2); }
+.sb-stat b { color:var(--gold); font-weight:400; }
+
+/* Wisdom list */
+.sb-list { flex:1; overflow-y:auto; }
+.sb-item { display:flex; align-items:center; gap:10px; padding:10px 16px; cursor:pointer; border-bottom:1px solid rgba(0,0,0,.03); transition:background .15s; }
+.sb-item:hover { background:var(--bg2); }
+.sb-item.active { background:var(--gold-dim); }
+.sb-item-thumb { width:40px; height:40px; border-radius:4px; object-fit:cover; background:var(--bg3); flex-shrink:0; border:1px solid var(--border); }
+.sb-item-char { width:40px; height:40px; border-radius:4px; background:var(--bg3); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:18px; color:var(--text0); flex-shrink:0; }
+.sb-item-info { flex:1; min-width:0; }
+.sb-item-date { font-size:10px; color:var(--text2); font-family:var(--mono); }
+.sb-item-char-main { font-family:var(--serif); font-size:14px; font-weight:400; margin-top:2px; }
+.sb-item-quote { font-size:10px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+
+/* Main */
+.main-header { padding:14px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--bg1); }
+.main-title { font-family:var(--serif); font-size:18px; font-weight:400; }
+.main-actions { display:flex; gap:6px; }
+
+/* Buttons */
+.btn { padding:6px 14px; border-radius:6px; border:1px solid var(--border); background:var(--bg1); color:var(--text0); font-size:11px; cursor:pointer; transition:all .15s; display:inline-flex; align-items:center; gap:5px; font-weight:300; font-family:var(--sans); }
+.btn:hover { background:var(--bg3); border-color:var(--gold); }
+.btn-primary { background:var(--gold-dim); border-color:var(--gold); color:var(--gold); }
+.btn-danger { background:var(--seal-dim); border-color:var(--seal); color:var(--seal); }
+.btn-success { background:var(--green-dim); border-color:var(--green); color:var(--green); }
+.btn-sm { padding:4px 10px; font-size:10px; }
+.btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+/* Content */
+.content { flex:1; overflow-y:auto; padding:24px; }
+
+/* Detail view */
+.detail { max-width:700px; margin:0 auto; }
+.detail-img-wrap { position:relative; border-radius:4px; overflow:hidden; border:1px solid var(--border); margin-bottom:20px; }
+.detail-img { width:100%; display:block; aspect-ratio:1; object-fit:cover; }
+.detail-char-overlay { position:absolute; bottom:16px; right:16px; font-family:var(--serif); font-size:6rem; color:rgba(255,255,255,0.12); line-height:1; pointer-events:none; }
+
+.detail-meta { display:flex; align-items:center; gap:16px; margin-bottom:24px; }
+.detail-char-big { font-family:var(--serif); font-size:4rem; color:var(--text0); line-height:1; }
+.detail-date { font-size:12px; color:var(--text2); font-family:var(--mono); }
+
+/* Caption blocks */
+.caption-section { margin-bottom:20px; }
+.caption-block { background:var(--bg1); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:12px; position:relative; }
+.caption-label { font-size:10px; color:var(--text2); letter-spacing:0.08em; margin-bottom:8px; text-transform:uppercase; }
+.caption-text { font-family:var(--serif); font-size:14px; color:var(--text0); line-height:1.8; white-space:pre-line; }
+.caption-text.editing { background:var(--bg2); border:1px solid var(--gold); border-radius:4px; padding:8px; outline:none; }
+.caption-actions { position:absolute; top:12px; right:12px; display:flex; gap:4px; opacity:0; transition:opacity .15s; }
+.caption-block:hover .caption-actions { opacity:1; }
+
+/* Forms */
+.form-group { margin-bottom:16px; }
+.form-label { font-size:10px; color:var(--text2); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px; display:block; font-weight:400; }
+.form-input { width:100%; background:var(--bg1); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--text0); font-size:12px; outline:none; font-family:inherit; font-weight:300; }
+.form-input:focus { border-color:var(--gold); }
+.form-textarea { width:100%; background:var(--bg1); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--text0); font-size:12px; outline:none; font-family:inherit; font-weight:300; min-height:80px; resize:vertical; }
+.form-textarea:focus { border-color:var(--gold); }
+
+/* Empty state */
+.empty { text-align:center; padding:60px 20px; }
+.empty-icon { font-size:3rem; margin-bottom:16px; opacity:0.3; }
+.empty-text { font-size:13px; color:var(--text2); }
+
+/* Toast */
+.toast { position:fixed; bottom:20px; right:20px; padding:10px 20px; border-radius:6px; font-size:12px; z-index:999; transform:translateY(60px); opacity:0; transition:all .3s; pointer-events:none; }
+.toast.show { transform:translateY(0); opacity:1; pointer-events:auto; }
+.toast-success { background:var(--green); color:#fff; }
+.toast-error { background:var(--seal); color:#fff; }
+
+/* Modal overlay */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); backdrop-filter:blur(4px); z-index:200; justify-content:center; align-items:center; }
+.modal-overlay.active { display:flex; }
+.modal { background:var(--bg1); border-radius:8px; padding:24px; max-width:400px; width:90%; border:1px solid var(--border); }
+.modal-title { font-family:var(--serif); font-size:16px; margin-bottom:16px; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+
+/* Add form */
+.add-form { background:var(--bg1); border:1px solid var(--border); border-radius:6px; padding:20px; margin-bottom:20px; }
+
+/* Responsive */
+@media (max-width:700px) {
+  .sidebar { width:260px; }
+  .detail-char-big { font-size:3rem; }
+}
+@media (max-width:500px) {
+  .app { flex-direction:column; }
+  .sidebar { width:100%; max-height:40vh; border-right:none; border-bottom:1px solid var(--border); }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-header">
+      <div class="sb-title">
+        每日箴言
+        <a href="/wisdom/" target="_blank">← 画廊</a>
+      </div>
+      <div class="sb-nav">
+        <a href="/admin">提示词画廊</a>
+        <a href="/wisdom-admin">箴言管理</a>
+      </div>
+    </div>
+    <div class="sb-stats">
+      <div class="sb-stat">共 <b id="totalCount">0</b> 条</div>
+      <div class="sb-stat">今日: <b id="todayChar" style="color:var(--seal)">—</b></div>
+    </div>
+    <div class="sb-list" id="wisdomList">
+      <div class="empty"><div class="empty-text">加载中...</div></div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="main-header">
+      <div class="main-title" id="mainTitle">箴言管理</div>
+      <div class="main-actions">
+        <button class="btn btn-primary" onclick="showAddForm()">+ 新增箴言</button>
+        <button class="btn btn-success" onclick="generateToday()">⚡ 生成今日</button>
+      </div>
+    </div>
+    <div class="content" id="mainContent">
+      <div class="empty">
+        <div class="empty-icon">📜</div>
+        <div class="empty-text">选择一条箴言查看/编辑<br>或点击「新增箴言」添加</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Delete confirm modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">确认删除</div>
+    <div style="font-size:12px;color:var(--text1)">删除后将无法恢复，确定要删除这条箴言吗？</div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeDeleteModal()">取消</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn">删除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let wisdoms = [];
+let selectedIdx = -1;
+let editingCaption = null;
+
+// ── API ──
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: {'Content-Type': 'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+async function loadWisdoms() {
+  wisdoms = await api('/api/wisdoms');
+  wisdoms.sort((a, b) => b.date.localeCompare(a.date));
+  renderList();
+  document.getElementById('totalCount').textContent = wisdoms.length;
+  if (wisdoms.length > 0) {
+    document.getElementById('todayChar').textContent = wisdoms[wisdoms.length - 1].char;
+  }
+}
+
+// ── List ──
+
+function renderList() {
+  const el = document.getElementById('wisdomList');
+  if (!wisdoms.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-text">暂无箴言</div></div>';
+    return;
+  }
+  el.innerHTML = wisdoms.map((w, i) => {
+    const captions = w.captions || {};
+    const quote = captions.v3_quote || '';
+    return `
+      <div class="sb-item ${i === selectedIdx ? 'active' : ''}" onclick="selectWisdom(${i})">
+        <div class="sb-item-thumb-wrap">
+          <img class="sb-item-thumb" src="/wisdom/${w.image}" alt="${w.char}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="sb-item-char" style="display:none">${w.char}</div>
+        </div>
+        <div class="sb-item-info">
+          <div class="sb-item-date">${w.date}</div>
+          <div class="sb-item-char-main">【${w.char}】</div>
+          <div class="sb-item-quote">${quote}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Select ──
+
+function selectWisdom(idx) {
+  selectedIdx = idx;
+  renderList();
+  renderDetail(wisdoms[idx]);
+}
+
+function renderDetail(w) {
+  const c = w.captions || {};
+  document.getElementById('mainTitle').textContent = `【${w.char}】${w.date}`;
+  document.getElementById('mainContent').innerHTML = `
+    <div class="detail">
+      <div class="detail-img-wrap">
+        <img class="detail-img" src="/wisdom/${w.image}" alt="字：${w.char}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22><rect fill=%22%23f0ece7%22 width=%22200%22 height=%22200%22/><text x=%22100%22 y=%22115%22 text-anchor=%22middle%22 font-size=%2260%22 fill=%22%23b0a8a0%22 font-family=%22serif%22>${w.char}</text></svg>'">
+        <div class="detail-char-overlay">${w.char}</div>
+      </div>
+      <div class="detail-meta">
+        <div class="detail-char-big">${w.char}</div>
+        <div class="detail-date">${w.date}</div>
+      </div>
+      <div class="caption-section">
+        <div class="caption-block">
+          <div class="caption-label">生活分享型</div>
+          <div class="caption-text" id="caption-v1">${esc(c.v1_life||'')}</div>
+          <div class="caption-actions">
+            <button class="btn btn-sm" onclick="editCaption('v1')">✏️ 编辑</button>
+            <button class="btn btn-sm" onclick="genCaption('v1')">🔄 重新生成</button>
+          </div>
+        </div>
+        <div class="caption-block">
+          <div class="caption-label">观点输出型</div>
+          <div class="caption-text" id="caption-v2">${esc(c.v2_opinion||'')}</div>
+          <div class="caption-actions">
+            <button class="btn btn-sm" onclick="editCaption('v2')">✏️ 编辑</button>
+            <button class="btn btn-sm" onclick="genCaption('v2')">🔄 重新生成</button>
+          </div>
+        </div>
+        <div class="caption-block">
+          <div class="caption-label">金句型</div>
+          <div class="caption-text" id="caption-v3">${esc(c.v3_quote||'')}</div>
+          <div class="caption-actions">
+            <button class="btn btn-sm" onclick="editCaption('v3')">✏️ 编辑</button>
+            <button class="btn btn-sm" onclick="genCaption('v3')">🔄 重新生成</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:20px">
+        <button class="btn btn-primary" onclick="saveAllCaptions()">💾 保存文案</button>
+        <button class="btn btn-danger" onclick="confirmDelete(${wisdoms.indexOf(w)})">🗑 删除</button>
+      </div>
+    </div>`;
+}
+
+// ── Edit caption inline ──
+
+function editCaption(key) {
+  if (editingCaption) saveEdit();
+  editingCaption = key;
+  const el = document.getElementById('caption-' + key);
+  el.contentEditable = true;
+  el.classList.add('editing');
+  el.focus();
+}
+
+function saveEdit() {
+  if (!editingCaption) return;
+  const el = document.getElementById('caption-' + editingCaption);
+  el.contentEditable = false;
+  el.classList.remove('editing');
+  const w = wisdoms[selectedIdx];
+  if (w && w.captions) {
+    const map = {v1:'v1_life', v2:'v2_opinion', v3:'v3_quote'};
+    w.captions[map[editingCaption]] = el.textContent;
+  }
+  editingCaption = null;
+}
+
+async function genCaption(key) {
+  const w = wisdoms[selectedIdx];
+  if (!w) return;
+  showToast('生成中...', 'success');
+  try {
+    const result = await api('/api/wisdoms/generate-caption', 'POST', {char: w.char});
+    if (result.ok && result.captions) {
+      const map = {v1:'v1_life', v2:'v2_opinion', v3:'v3_quote'};
+      const idx = {v1:0, v2:1, v3:2}[key];
+      const vals = [result.captions.v1_life, result.captions.v2_opinion, result.captions.v3_quote];
+      document.getElementById('caption-' + key).textContent = vals[idx] || '';
+      w.captions[map[key]] = vals[idx] || '';
+      showToast('已更新', 'success');
+    }
+  } catch(e) {
+    showToast('生成失败: ' + e.message, 'error');
+  }
+}
+
+async function saveAllCaptions() {
+  saveEdit();
+  if (selectedIdx < 0) return;
+  const w = wisdoms[selectedIdx];
+  try {
+    await api(`/api/wisdoms/${selectedIdx}`, 'PUT', {captions: w.captions});
+    showToast('文案已保存', 'success');
+  } catch(e) {
+    showToast('保存失败: ' + e.message, 'error');
+  }
+}
+
+// ── Add form ──
+
+function showAddForm() {
+  document.getElementById('mainTitle').textContent = '新增箴言';
+  document.getElementById('mainContent').innerHTML = `
+    <div class="detail">
+      <div class="add-form">
+        <div class="form-group">
+          <label class="form-label">日期</label>
+          <input class="form-input" id="addDate" value="${new Date().toISOString().slice(0,10)}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">字</label>
+          <input class="form-input" id="addChar" placeholder="如：澄" maxlength="1" style="font-family:var(--serif);font-size:24px;text-align:center">
+        </div>
+        <div class="form-group">
+          <label class="form-label">图片文件名</label>
+          <input class="form-input" id="addImage" placeholder="wisd_2026-06-01.png">
+        </div>
+        <div class="form-group">
+          <label class="form-label">生活分享型文案</label>
+          <textarea class="form-textarea" id="addV1" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">观点输出型文案</label>
+          <textarea class="form-textarea" id="addV2" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">金句型文案</label>
+          <textarea class="form-textarea" id="addV3" rows="2"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-primary" onclick="submitAdd()">保存</button>
+          <button class="btn" onclick="cancelAdd()">取消</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function cancelAdd() {
+  document.getElementById('mainTitle').textContent = '箴言管理';
+  document.getElementById('mainContent').innerHTML = `
+    <div class="empty">
+      <div class="empty-icon">📜</div>
+      <div class="empty-text">选择一条箴言查看/编辑<br>或点击「新增箴言」添加</div>
+    </div>`;
+}
+
+async function submitAdd() {
+  const entry = {
+    date: document.getElementById('addDate').value,
+    char: document.getElementById('addChar').value,
+    image: document.getElementById('addImage').value,
+    captions: {
+      v1_life: document.getElementById('addV1').value,
+      v2_opinion: document.getElementById('addV2').value,
+      v3_quote: document.getElementById('addV3').value,
+    },
+    created_at: new Date().toISOString(),
+  };
+  if (!entry.char) { showToast('请输入字', 'error'); return; }
+  try {
+    await api('/api/wisdoms', 'POST', entry);
+    showToast('已添加', 'success');
+    await loadWisdoms();
+    cancelAdd();
+  } catch(e) {
+    showToast('添加失败: ' + e.message, 'error');
+  }
+}
+
+// ── Generate today ──
+
+async function generateToday() {
+  showToast('请在终端运行: python3 daily_wisdom.py', 'success');
+}
+
+// ── Delete ──
+
+let deleteIdx = -1;
+function confirmDelete(idx) {
+  deleteIdx = idx;
+  document.getElementById('deleteModal').classList.add('active');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('active');
+  deleteIdx = -1;
+}
+
+document.getElementById('confirmDeleteBtn').onclick = async () => {
+  if (deleteIdx < 0) return;
+  try {
+    await api(`/api/wisdoms/${deleteIdx}`, 'DELETE');
+    showToast('已删除', 'success');
+    closeDeleteModal();
+    await loadWisdoms();
+    selectedIdx = -1;
+    document.getElementById('mainTitle').textContent = '箴言管理';
+    document.getElementById('mainContent').innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">📜</div>
+        <div class="empty-text">选择一条箴言查看/编辑<br>或点击「新增箴言」添加</div>
+      </div>`;
+  } catch(e) {
+    showToast('删除失败: ' + e.message, 'error');
+  }
+};
+
+// ── Utilities ──
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showToast(msg, type='success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast toast-${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Start ──
+loadWisdoms();
+</script>
+</body>
+</html>
