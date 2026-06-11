@@ -43,22 +43,11 @@ def render_site():
         p.setdefault("author", "小小东")
         p.setdefault("authorUrl", "https://x.com/xiaoxiaodong01")
 
-    # Load AdrianPunk collection if exists
-    adrian_prompts = []
-    if adrian_path.exists():
-        with open(adrian_path, encoding="utf-8") as f:
-            adrian_prompts = json.load(f)
-        # Map fullPrompt → structure.full for template compatibility
-        for p in adrian_prompts:
-            if "fullPrompt" in p and "structure" not in p:
-                p["structure"] = {"full": p["fullPrompt"], "broth": "", "spice": "", "catalyst": ""}
-        print(f"   📦 AdrianPunk: {len(adrian_prompts)} prompts")
-
-    # Merge all
-    all_prompts = prompts + adrian_prompts
+    # AdrianPunk collection removed — site is 小小东 only
+    all_prompts = prompts
     # Sort by number descending (newest/highest number first)
     all_prompts.sort(key=lambda p: p.get("number", 0), reverse=True)
-    print(f"   📦 Total: {len(all_prompts)} prompts ({len(prompts)} 小小东 + {len(adrian_prompts)} AdrianPunk)")
+    print(f"   📦 Total: {len(all_prompts)} prompts (小小东 only)")
 
     # 1.5 Scan disk for test images and update tests field
     tests_dir = BASE / "site" / "assets" / "tests"
@@ -90,13 +79,7 @@ def render_site():
                 "size": f"{test_path.stat().st_size // 1024}KB",
             }
         p["tests"] = tests
-        # For AdrianPunk: also set refImage to a category-level image
-        if coll == "adrian-punk" and p.get("refImage") is None:
-            # Try to find the category image based on category num
-            cat_num = ((p["number"] - 1) // 4) + 1
-            cat_img = tests_dir / "adrian_refs" / f"cat_{cat_num}.jpg"
-            if cat_img.exists():
-                p["refImage"] = f"assets/tests/adrian_refs/cat_{cat_num}.jpg"
+
 
     updated_with_images = sum(1 for p in all_prompts if p["tests"])
     gcli_count = sum(1 for p in all_prompts if "Nano Banana 2" in p["tests"])
