@@ -1951,6 +1951,11 @@ body::before {
 <script>
 // Collection tab switching
 let activeColl = localStorage.getItem('pg_tab') || 'xiaoxiaodong';
+// Fallback: if saved tab no longer exists, reset to xiaoxiaodong
+if (!document.querySelector(`[data-coll="${activeColl}"]`)) {
+  activeColl = 'xiaoxiaodong';
+  localStorage.removeItem('pg_tab');
+}
 
 function saveTab(el) {
   localStorage.setItem('pg_tab', activeColl);
