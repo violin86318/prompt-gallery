@@ -21,6 +21,13 @@ import argparse, base64, json, os, sys, time, subprocess, re, urllib.request
 from pathlib import Path
 from datetime import datetime
 
+# ── gcli_archive 归档 ──────────────────────────────────────────────────────
+sys.path.insert(0, os.path.expanduser("~/gcli_archive"))
+try:
+    import gcli_archive as _archive
+except ImportError:
+    _archive = None
+
 # ── Paths ──────────────────────────────────────────────────────────────────
 BASE = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE / "data"
@@ -145,6 +152,7 @@ print(json.dumps({{"ok": False, "error": last_error, "elapsed": round(elapsed, 1
 def gen_gcli(prompt_text, output_path):
     """通过本地 NAS gcli2api (Gemini) 生成图片，免费不走 bizyair"""
     import base64, urllib.request, urllib.error
+    _stem = Path(output_path).stem if output_path else "unknown"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
         "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]}
@@ -172,6 +180,19 @@ def gen_gcli(prompt_text, output_path):
                     with open(output_path, "wb") as f:
                         f.write(img_data)
                     sz = len(img_data) // 1024
+                    # 归档到 gcli_archive
+                    if _archive:
+                        try:
+                            _archive._upsert_task(
+                                f"adrian_{_stem}",
+                                datetime.now().isoformat(), prompt_text,
+                                GCLI_MODEL + "-16x9", ENDPOINT_NANO, "success",
+                                image_path=str(output_path),
+                                file_size_kb=sz, duration=elapsed,
+                                metadata={"source": "gen_adrian"}
+                            )
+                        except Exception:
+                            pass
                     return {"ok": True, "size_kb": sz, "elapsed": round(elapsed, 1), "request_id": "gcli_local"}
             return {"ok": False, "error": "no image in response", "elapsed": round(elapsed, 1)}
         except Exception as e:

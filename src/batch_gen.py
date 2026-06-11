@@ -34,6 +34,13 @@ import argparse, base64, json, os, sys, time, urllib.request, urllib.error
 from pathlib import Path
 from datetime import datetime
 
+# ── gcli_archive 归档 ──────────────────────────────────────────────────────
+sys.path.insert(0, os.path.expanduser("~/gcli_archive"))
+try:
+    import gcli_archive as _archive
+except ImportError:
+    _archive = None
+
 # ── Paths ──────────────────────────────────────────────────────────────────
 BASE = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE / "data"
@@ -66,7 +73,7 @@ def get_bizyair_key():
 
 
 # ── Nano Banana 2 (gcli2api) ──────────────────────────────────────────────
-def gen_gcli(prompt: str, output_path: str, aspect: str = "1:1") -> dict:
+def gen_gcli(prompt: str, output_path: str, aspect: str = "1:1", num: int = 0) -> dict:
     """调用 gcli2api Antigravity 端点生成图片"""
     aspect_map = {
         "1:1": "", "16:9": "-16x9", "9:16": "-9x16",
@@ -109,6 +116,20 @@ def gen_gcli(prompt: str, output_path: str, aspect: str = "1:1") -> dict:
                     with open(output_path, "wb") as f:
                         f.write(img_data)
                     size_kb = len(img_data) / 1024
+                    # 归档到 gcli_archive
+                    if _archive:
+                        try:
+                            _archive._upsert_task(
+                                f"pg_{num}_{full_model}",
+                                datetime.now().isoformat(), prompt,
+                                full_model, endpoint, "success",
+                                image_path=output_path,
+                                file_size_kb=int(size_kb),
+                                duration=elapsed,
+                                metadata={"source": "batch_gen", "number": num}
+                            )
+                        except Exception:
+                            pass
                     return {
                         "ok": True, "path": output_path,
                         "size_kb": round(size_kb), "elapsed": round(elapsed, 1),
@@ -313,7 +334,7 @@ def run_batch(tasks, aspect):
         print(f"[{i}/{len(tasks)}] #{num} {label} — {task['prompt'][:60]}...")
 
         if task["model"] == "gcli":
-            result = gen_gcli(task["prompt"], task["output"], aspect)
+            result = gen_gcli(task["prompt"], task["output"], aspect, num=task["number"])
         else:
             result = gen_bizyair(task["prompt"], task["output"], bizyair_key, aspect)
 

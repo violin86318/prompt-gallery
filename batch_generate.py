@@ -7,6 +7,14 @@ Prompt Gallery 批量生图脚本
 
 import json, os, sys, time, base64, subprocess, urllib.request, urllib.error
 from pathlib import Path
+from datetime import datetime
+
+# ── gcli_archive 归档 ──────────────────────────────────────────────────────
+sys.path.insert(0, os.path.expanduser("~/gcli_archive"))
+try:
+    import gcli_archive as _archive
+except ImportError:
+    _archive = None
 
 # ─── 配置 ───────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
@@ -120,6 +128,20 @@ def gen_nanobanana2(number, prompt_text):
                     img_data = base64.b64decode(part["inlineData"]["data"])
                     with open(output_path, "wb") as f:
                         f.write(img_data)
+                    # 归档到 gcli_archive
+                    if _archive:
+                        try:
+                            _archive._upsert_task(
+                                f"pg_{number}_{full_model}",
+                                datetime.now().isoformat(), prompt_text,
+                                full_model, endpoint, "success",
+                                image_path=str(output_path),
+                                file_size_kb=len(img_data) // 1024,
+                                duration=elapsed,
+                                metadata={"source": "batch_generate", "number": number}
+                            )
+                        except Exception:
+                            pass
                     return True, str(output_path), elapsed, f"{len(img_data)//1024}KB"
             
             return False, None, elapsed, "API 未返回图片数据"

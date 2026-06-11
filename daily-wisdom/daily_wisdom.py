@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """每日箴言·一字美学 — 独立 crontab 脚本
 每天选一个哲理单字，用 BizyAir GPT Image 2 生成东方美学海报，
-用 GLM 动态生成 3 版朋友圈文案，发到 Telegram，记录到画廊数据。
+用 SiliconFlow (Nex-N2-Pro) 动态生成 3 版朋友圈文案，发到 Telegram，记录到画廊数据。
 
 用法:
     python3 daily_wisdom.py              # 自动选字
@@ -10,7 +10,7 @@
     python3 daily_wisdom.py --caption-only 澄  # 只生成文案（跳过图片）
 """
 
-import subprocess, sys, os, json, time, re, random, urllib.request, urllib.error
+import subprocess, sys, os, json, time, re, random, urllib.request, urllib.error, base64
 from pathlib import Path
 from datetime import datetime
 
@@ -29,10 +29,11 @@ ENDPOINT = "bza-image-o2-base/text-to-image"
 TG_BOT = "8650394988:AAEXYZe4AZekKfE1xjVDpG0t1fjgglxjsdA"
 TG_CHAT = "6428839227"
 
-# ── GLM API ──────────────────────────────────────────
-GLM_API_KEY = os.environ.get("GLM_API_KEY", "")
-GLM_MODEL = os.environ.get("GLM_MODEL", "glm-5.1")
-GLM_BASE = "https://open.bigmodel.cn/api/coding/paas/v4/"
+# ── SiliconFlow API ──────────────────────────────────
+SF_API_KEY = os.environ.get("SF_API_KEY", "sk-huvpjmcreuvzixvgmfhdpksfpgifknuwwpinkfligycaaxxw")
+SF_BASE = "https://api.siliconflow.cn/v1"
+SF_CAPTION_MODEL = "nex-agi/Nex-N2-Pro"     # 文案生成
+SF_VISION_MODEL = "Qwen/Qwen3-VL-8B-Instruct"  # OCR 验证
 
 # ── 字库 ──────────────────────────────────────────────
 CHAR_POOL = [
@@ -43,7 +44,7 @@ CHAR_POOL = [
     "恒", "笃", "慎", "恕", "慈", "悲", "愿", "净", "空", "明",
     "清", "柔", "和", "安", "简", "真", "如", "初", "善", "礼",
     "宽", "厚", "温", "良", "恭", "让", "逊", "谦", "敬", "诚",
-    "信", "恒", "坚", "韧", "达", "通", "畅", "舒", "缓", "徐",
+    "信", "坚", "韧", "达", "通", "畅", "舒", "缓", "徐",
 ]
 
 # ── 提示词模板 ────────────────────────────────────────
@@ -63,7 +64,7 @@ PROMPT_TEMPLATE_FULL = """请围绕用户提供的"主题"，设计一张具有�
 
 用户输入主题：【{char}】"""
 
-PROMPT_TEMPLATE = """Design a premium Eastern aesthetic poster featuring the Chinese character "{char}" as the central visual element. The character should integrate with ink wash painting, rice paper texture, and Song Dynasty aesthetics. Style: elegant, restrained, scholarly, with generous white space. Background: aged paper with subtle water stains and faint floral shadows. Colors: muted tones — cream white, tea brown, pale ink, gray-green. The character "{char}" must be the visual anchor, blending calligraphy with illustration. Museum-quality composition, not template-based."""
+PROMPT_TEMPLATE = PROMPT_TEMPLATE_FULL  # 保持函数签名兼容
 
 # ── 文案生成 Prompt ──────────────────────────────────
 CAPTION_SYSTEM = """你是一位精通东方美学与生活哲学的文案大师。你的风格：克制、有画面感、不鸡汤、不说教。
@@ -124,26 +125,99 @@ def pick_char(specified=None):
     return random.choice(available)
 
 
+def _simplify_chinese(text):
+    """OpenCC 繁简转换（可选依赖）。不可用则跳过。"""
+    try:
+        import opencc
+        converter = opencc.OpenCC('t2s')
+        return converter.convert(text)
+    except ImportError:
+        return text
+
+
+def verify_image_char(image_path, expected_char, timeout=60, max_attempts=2):
+    """OCR 验证图片上的字是否和预期一致。返回 (True/False, 实际识别到的字)。
+    自动处理简繁转换（阈、闲/閒、坚/堅 等）。
+    用 SiliconFlow Qwen3-VL-8B-Instruct。"""
+    if not SF_API_KEY:
+        return True, expected_char
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with open(image_path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("utf-8")
+            b64_size_mb = len(b64) / 1024 / 1024
+            if attempt == 1:
+                print(f"[OCR] 图片 base64: {b64_size_mb:.1f}MB, 超时={timeout}s", flush=True)
+
+            payload = json.dumps({
+                "model": SF_VISION_MODEL,
+                "max_tokens": 50,
+                "messages": [
+                    {"role": "user", "content": [
+                        {"type": "text", "text": "请直接输出图片中间那个最大的汉字，只输出一个字。"},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}}
+                    ]}
+                ]
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                f"{SF_BASE}/chat/completions",
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {SF_API_KEY}"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+                actual = body["choices"][0]["message"]["content"].strip()
+                actual = re.sub(r"[^\u4e00-\u9fff]", "", actual)[:1]
+
+            if not actual:
+                if attempt < max_attempts:
+                    print(f"[OCR] 返回为空，重试 {attempt+1}/{max_attempts}", flush=True)
+                    time.sleep(2)
+                    continue
+                else:
+                    print(f"[WARN] OCR 多次返回为空，默认通过", flush=True)
+                    return True, expected_char
+
+            # 繁简统一比较
+            actual_normalized = _simplify_chinese(actual)
+            expected_normalized = _simplify_chinese(expected_char)
+            if actual_normalized == expected_normalized:
+                return True, actual
+            else:
+                return False, actual
+
+        except Exception as e:
+            if attempt < max_attempts:
+                print(f"[OCR] 调用失败（{type(e).__name__}），重试 {attempt+1}/{max_attempts}", flush=True)
+                time.sleep(2)
+            else:
+                print(f"[WARN] OCR 验证失败（{e}），默认通过", flush=True)
+                return True, expected_char
+
+    return True, expected_char
+
+
 def generate_image(char, output_path):
-    """用 BizyAir ModelZoo CLI 生成图片"""
+    """用 BizyAir ModelZoo CLI 生成图片。返回 (success, actual_char)"""
     prompt = PROMPT_TEMPLATE.format(char=char)
     if len(prompt) > 4000:
         prompt = prompt[:4000]
 
     print(f"[1/4] 生成图片中... 字=【{char}】", flush=True)
 
-    prompts_to_try = [prompt]
     full_prompt = PROMPT_TEMPLATE_FULL.format(char=char)
-    if prompt != full_prompt:
-        prompts_to_try.append(full_prompt)
-
+    # 只用中文完整版 prompt，不降级
     img_url = None
-    for attempt, p in enumerate(prompts_to_try):
-        label = "英文精简版" if attempt == 0 else "中文完整版"
-        print(f"  尝试 {label}...", flush=True)
+    for attempt in range(1, 4):  # 最多重试 3 次
+        print(f"  中文完整版 第{attempt}次...", flush=True)
         r = subprocess.run(
             [sys.executable, str(CLI), "modelzoo-run", ENDPOINT,
-             "--param", f"prompt={p[:2000]}",
+             "--param", f"prompt={full_prompt[:2000]}",
              "--param", "aspect_ratio=1:1"],
             capture_output=True, text=True, timeout=600
         )
@@ -153,12 +227,12 @@ def generate_image(char, output_path):
                 break
         if img_url:
             break
-        print(f"  {label} 失败，尝试下一版本...", flush=True)
+        print(f"  第{attempt}次失败，重试...", flush=True)
 
     if not img_url:
-        print(f"[FAIL] 所有版本均失败", flush=True)
+        print(f"[FAIL] 3次均失败", flush=True)
         print(f"[STDOUT] {r.stdout[-300:]}", flush=True)
-        return False
+        return False, char
 
     print(f"[1/4] 下载图片: {img_url[:80]}...", flush=True)
     dl = subprocess.run(
@@ -170,43 +244,51 @@ def generate_image(char, output_path):
     if output_path.exists() and output_path.stat().st_size > 1000:
         size_kb = output_path.stat().st_size // 1024
         print(f"[OK] {output_path.name} ({size_kb}KB)", flush=True)
-        return True
+        return True, char
     else:
         print(f"[FAIL] 下载失败", flush=True)
-        return False
+        return False, char
 
 
 def generate_captions_llm(char):
-    """用 GLM API 动态生成 3 版朋友圈文案"""
-    if not GLM_API_KEY:
-        print("[WARN] GLM_API_KEY 未设置，使用通用文案", flush=True)
+    """用 SiliconFlow Nex-N2-Pro 动态生成 3 版朋友圈文案"""
+    if not SF_API_KEY:
+        print("[WARN] SF_API_KEY 未设置，使用通用文案", flush=True)
         return _fallback_captions(char)
 
-    print(f"[2/4] GLM 生成文案中... 字=【{char}】", flush=True)
+    print(f"[2/4] SiliconFlow 生成文案中... 模型={SF_CAPTION_MODEL} 字=【{char}】", flush=True)
 
     payload = json.dumps({
-        "model": GLM_MODEL,
+        "model": SF_CAPTION_MODEL,
         "messages": [
             {"role": "system", "content": CAPTION_SYSTEM},
             {"role": "user", "content": CAPTION_USER.format(char=char)}
         ],
         "temperature": 0.85,
-        "max_tokens": 800
+        "max_tokens": 2000
     }).encode("utf-8")
 
     req = urllib.request.Request(
-        f"{GLM_BASE}/chat/completions",
+        f"{SF_BASE}/chat/completions",
         data=payload,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {GLM_API_KEY}"
+            "Authorization": f"Bearer {SF_API_KEY}"
         }
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             body = json.loads(resp.read().decode("utf-8"))
-            text = body["choices"][0]["message"]["content"]
+            text = body["choices"][0]["message"].get("content", "") or ""
+            finish_reason = body["choices"][0].get("finish_reason", "")
+
+        if not text.strip():
+            print(f"[WARN] LLM 返回空 content (finish_reason={finish_reason})，使用通用文案", flush=True)
+            return _fallback_captions(char)
+
+        if finish_reason == "length":
+            print(f"[WARN] LLM 响应被截断 (finish_reason=length)，可能影响文案质量", flush=True)
 
         # 解析 3 个版本
         versions = {"v1": "", "v2": "", "v3": ""}
@@ -216,16 +298,24 @@ def generate_captions_llm(char):
             versions["v2"] = _clean_caption(sections[2])
             versions["v3"] = _clean_caption(sections[3])
         else:
-            # fallback: 按 \n\n 分 3 段
             parts = [p.strip() for p in text.split("\n\n") if p.strip()]
-            for i, key in enumerate(["v1", "v2", "v3"]):
-                versions[key] = parts[i] if i < len(parts) else f"今日字：【{char}】"
+            if len(parts) >= 3:
+                versions["v1"] = parts[0]
+                versions["v2"] = parts[1]
+                versions["v3"] = parts[2]
+            else:
+                print(f"[WARN] LLM 响应解析不足 3 段（仅 {len(parts)} 段），使用通用文案", flush=True)
+                return _fallback_captions(char)
 
-        print(f"[OK] 文案生成成功", flush=True)
+        if not all(versions.values()):
+            print(f"[WARN] LLM 解析后有空 caption，使用通用文案", flush=True)
+            return _fallback_captions(char)
+
+        print(f"[OK] 文案生成成功 ({len(text)}字)", flush=True)
         return [versions["v1"], versions["v2"], versions["v3"]]
 
     except Exception as e:
-        print(f"[WARN] GLM 调用失败: {e}，使用通用文案", flush=True)
+        print(f"[WARN] SiliconFlow 调用失败: {e}，使用通用文案", flush=True)
         return _fallback_captions(char)
 
 
@@ -323,9 +413,14 @@ def send_telegram(image_path, char, captions):
     return msg_failures < 2, failures
 
 
-def save_gallery_data(char, captions, image_path):
-    """保存到画廊 JSON 数据"""
+def save_gallery_data(char, captions, image_path, actual_char=None):
+    """保存到画廊 JSON 数据。actual_char 是图片上实际画的字（以防与预期不一致）"""
     today = datetime.now().strftime("%Y-%m-%d")
+
+    # 如果实际画的字和预期不一样，记录在 entry 里但用 actual_char
+    final_char = actual_char if actual_char else char
+    if actual_char and actual_char != char:
+        print(f"[WARN] 实际图字【{actual_char}】与预期【{char}】不同，以图为准", flush=True)
 
     # 加载已有数据
     if GALLERY_DATA.exists():
@@ -339,7 +434,8 @@ def save_gallery_data(char, captions, image_path):
     if not existing:
         entry = {
             "date": today,
-            "char": char,
+            "char": final_char,
+            "expected_char": char,
             "image": image_path.name,
             "captions": {
                 "v1_life": captions[0],
@@ -353,7 +449,7 @@ def save_gallery_data(char, captions, image_path):
         with open(GALLERY_DATA, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        print(f"[4/4] 画廊数据已保存 ({len(data)} 条)", flush=True)
+        print(f"[4/4] 画廊数据已保存 ({len(data)} 条) 字=【{final_char}】", flush=True)
     else:
         print(f"[4/4] 今日画廊数据已存在，跳过", flush=True)
 
@@ -394,7 +490,7 @@ def record_char(char, captions):
     mem_file = MEMORY_DIR / f"MEM-{today}.md"
 
     caption_preview = captions[2][:50] if captions and len(captions) > 2 else ""
-    entry = f"\n- 📜 每日箴言：【{char}】— 已发送 Telegram（GLM 文案）\n  金句：{caption_preview}\n"
+    entry = f"\n- 📜 每日箴言：【{char}】— 已发送 Telegram\n  金句：{caption_preview}\n"
 
     if mem_file.exists():
         content = mem_file.read_text(encoding="utf-8")
@@ -417,15 +513,15 @@ def main():
     parser.add_argument("--backfill-date", help="补全指定日期的 gallery（如 2026-06-03）")
     args = parser.parse_args()
 
-    # 注入 GLM_API_KEY（从 .zshrc 读取备用）
-    global GLM_API_KEY
-    if not GLM_API_KEY:
-        zshrc = Path.home() / ".zshrc"
-        if zshrc.exists():
-            for line in zshrc.read_text().split("\n"):
-                if line.startswith("export GLM_API_KEY="):
-                    GLM_API_KEY = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
+    # 锁文件防并发（同一时间不能跑两个 daily_wisdom）
+    import fcntl
+    lock_path = Path("/tmp/daily_wisdom.lock")
+    lock_fp = open(lock_path, "w")
+    try:
+        fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(f"[LOCK] 另一个 daily_wisdom 实例正在运行，直接退出", flush=True)
+        sys.exit(0)
 
     OUTPUT_DIR.mkdir(exist_ok=True)
     (OUTPUT_DIR / "logs").mkdir(exist_ok=True)  # 强制确保日志目录存在
@@ -455,21 +551,29 @@ def main():
         if any(e.get("date") == backfill_date for e in data):
             print(f"[SKIP] {backfill_date} 已在 gallery 中", flush=True)
             return
-        # 补全文案（从兜底文件或重新生成）
+        # OCR 验证图片实际是什么字（以图为准）
+        if SF_API_KEY:
+            ok, detected_char = verify_image_char(bp, char)
+            actual_bf = detected_char
+            print(f"[BACKFILL] OCR 验证: 图字=【{detected_char}】", flush=True)
+        else:
+            actual_bf = char
+        # 补全文案（以实际图字生成）
         fallback = OUTPUT_DIR / f"FAILED_{backfill_date}.json"
         if fallback.exists():
             fb = json.loads(fallback.read_text(encoding="utf-8"))
             captions = [fb["captions"]["v1_life"], fb["captions"]["v2_opinion"], fb["captions"]["v3_quote"]]
             print(f"[BACKFILL] 使用兜底文案", flush=True)
         else:
-            captions = generate_captions_llm(char)
+            captions = generate_captions_llm(actual_bf)
             print(f"[BACKFILL] 重新生成文案", flush=True)
-        save_gallery_data(char, captions, bp)
-        print(f"✅ 补全完成: {backfill_date} -> 字【{char}】", flush=True)
+        save_gallery_data(actual_bf, captions, bp, actual_char=actual_bf)
+        print(f"✅ 补全完成: {backfill_date} -> 字【{actual_bf}】", flush=True)
         return
 
-    # 生成文案（始终生成，不管图片是否已存在）
-    captions = generate_captions_llm(char)
+    # 文案按最终确定的字生成（如果换了字需要重新生成）
+    if actual_char != char or not captions:
+        captions = generate_captions_llm(actual_char)
 
     if args.caption_only:
         print(f"\n✍️ 文案预览：", flush=True)
@@ -478,25 +582,59 @@ def main():
             print(f"\n【{label}】\n{text}", flush=True)
         return
 
-    # 检查是否已生成图片
-    if output_path.exists() and output_path.stat().st_size > 1000:
-        print(f"[SKIP] 今日图片已生成: {output_path}", flush=True)
-    else:
-        # 生成图片
-        if not generate_image(char, output_path):
-            sys.exit(1)
+    # 生图 + OCR 验证循环
+    # 策略：同一个字重画最多 3 次，都不过才换字（最多换 2 轮）
+    actual_char = char
+    char_confirmed = False
+
+    for char_round in range(3):  # 最多换 3 个字
+        img_ok_for_this_char = False
+        for img_attempt in range(3):  # 同字重画最多 3 次
+            if output_path.exists() and output_path.stat().st_size > 1000:
+                print(f"[SKIP] 今日图片已存在: {output_path}", flush=True)
+            else:
+                success, _ = generate_image(char, output_path)
+                if not success:
+                    sys.exit(1)
+
+            ok, detected = verify_image_char(output_path, char)
+            if ok:
+                actual_char = char
+                char_confirmed = True
+                print(f"[OCR] 图片字正确: 【{detected}】 ✅", flush=True)
+                break
+            else:
+                print(f"[OCR] 图字【{detected}】与预期【{char}】不符 (同字第{img_attempt+1}次)", flush=True)
+                # 备份错图
+                backup_path = OUTPUT_DIR / f"wisd_{today}_wrong_{char}_{detected}_r{char_round}a{img_attempt}.png"
+                output_path.rename(backup_path)
+                print(f"[BACKUP] → {backup_path.name}", flush=True)
+
+        if char_confirmed:
+            break
+
+        # 同字 3 次都不过，换字
+        if char_round < 2:
+            new_char = pick_char()
+            print(f"[RETRY] 【{char}】3次均不通过，换字 → 【{new_char}】", flush=True)
+            char = new_char
+            captions = generate_captions_llm(char)
+        else:
+            # 最后一轮也不通过，以最后一次 OCR 结果为准
+            actual_char = detected
+            print(f"[WARN] 3轮均未确认，以图字【{detected}】为准", flush=True)
 
     # 发送 Telegram（即使失败也继续保存 gallery）
     print(f"[3/4] 发送到 Telegram...", flush=True)
     try:
-        tg_ok, tg_failures = send_telegram(output_path, char, captions)
+        tg_ok, tg_failures = send_telegram(output_path, actual_char, captions)
     except Exception as e:
         print(f"[ERR] Telegram 发送异常: {e}", flush=True)
         tg_ok, tg_failures = False, [str(e)]
 
-    # 保存画廊数据（即使 Telegram 失败也保存，图片本地已有）
+    # 保存画廊数据（以实际图字为准）
     try:
-        save_gallery_data(char, captions, output_path)
+        save_gallery_data(char, captions, output_path, actual_char=actual_char)
     except Exception as e:
         print(f"[ERR] 保存 gallery 失败: {e}", flush=True)
 
@@ -509,16 +647,16 @@ def main():
 
     # 记录
     try:
-        record_char(char, captions)
+        record_char(actual_char, captions)
     except Exception as e:
         print(f"[ERR] 记录 MEM 失败: {e}", flush=True)
 
     # 总结
     print(f"\n═══════════════════════════════════════", flush=True)
     if tg_ok:
-        print(f"✅ 每日箴言完成！字=【{char}】 Telegram 发送成功", flush=True)
+        print(f"✅ 每日箴言完成！字=【{actual_char}】 Telegram 发送成功", flush=True)
     else:
-        print(f"⚠️ 每日箴言完成（本地）！字=【{char}】", flush=True)
+        print(f"⚠️ 每日箴言完成（本地）！字=【{actual_char}】", flush=True)
         print(f"   Telegram 发送失败 ({len(tg_failures)} 个错误)", flush=True)
         print(f"   Gallery 已保存，下次 cron 可重试", flush=True)
     print(f"═══════════════════════════════════════", flush=True)
