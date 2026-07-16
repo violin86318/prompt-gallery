@@ -174,8 +174,10 @@ body::before {
 }
 .comparison__item img {
   width: 100%;
+  height: auto;
   display: block;
   cursor: zoom-in;
+  object-fit: contain;
 }
 
 /* Lightbox */
@@ -524,7 +526,7 @@ body::before {
   </div>
   {% endif %}
 
-  {% if prompt.structure.spice %}
+  {% if prompt.structure and prompt.structure is mapping and prompt.structure.spice %}
   <div class="section section--spice">
     <div class="section__inner">
       <div class="section__label">🧂 佐料</div>
@@ -534,13 +536,35 @@ body::before {
   </div>
   {% endif %}
 
-  {% if prompt.structure.catalyst %}
+  {% if prompt.structure and prompt.structure is mapping and prompt.structure.catalyst %}
   <div class="section section--catalyst">
     <div class="section__inner">
       <div class="section__label">💊 药引子</div>
       <div class="section__text" id="catalyst-text">{{ prompt.structure.catalyst }}</div>
     </div>
   </div>
+  {% endif %}
+
+  {% if prompt.structure and prompt.structure is mapping and not prompt.structure.broth and not prompt.structure.spice and not prompt.structure.catalyst and prompt.prompt %}
+  <!-- Fallback: structure is dict but no broth/spice/catalyst -->
+  <div class="classic">
+    <div class="classic__label">提示词原文</div>
+    <div class="classic__text" id="full-text">{{ prompt.prompt }}</div>
+    <div class="section__copy"><button class="copy-btn" onclick="copyText('full-text')">copy →</button></div>
+  </div>
+  {% elif not prompt.structure or prompt.structure is not mapping %}
+  {% if prompt.prompt %}
+  <div class="classic">
+    <div class="classic__label">提示词原文</div>
+    <div class="classic__text" id="full-text">{{ prompt.prompt }}</div>
+    <div class="section__copy"><button class="copy-btn" onclick="copyText('full-text')">copy →</button></div>
+  </div>
+  {% else %}
+  <div class="classic">
+    <div class="classic__label">提示词原文</div>
+    <div class="classic__text" style="color:var(--text-meta);">提示词原文待提取</div>
+  </div>
+  {% endif %}
   {% endif %}
   {% endif %}
 
