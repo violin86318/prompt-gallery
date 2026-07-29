@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>#7 抽象表情包 · 提示词画廊</title>
+<title>#171 平面设计感真实场域视觉·城市早安 · 提示词画廊</title>
 <style>
 :root {
   --bg: #f7f5f2;
@@ -403,44 +403,44 @@ body::before {
 
   <!-- Title -->
   <div class="title-block">
-    <div class="title-block__num">#07</div>
-    <div class="title-block__title">抽象表情包</div>
+    <div class="title-block__num">#171</div>
+    <div class="title-block__title">平面设计感真实场域视觉·城市早安</div>
   </div>
 
   <!-- Meta card -->
   <div class="meta-card">
     <div class="meta-card__grid">
       <span class="meta-card__key">编号</span>
-      <span class="meta-card__val">#7</span>
+      <span class="meta-card__val">#171</span>
 
       <span class="meta-card__key">类型</span>
       <span class="meta-card__val">
-        <span class="meta-card__tag">图生图</span>
+        <span class="meta-card__tag">image</span>
         
-        <span class="meta-card__tag">经典版</span>
+        <span class="meta-card__tag">汤底结构</span>
         
       </span>
 
       <span class="meta-card__key">垫图</span>
-      <span class="meta-card__val">✅ 头像照</span>
+      <span class="meta-card__val"></span>
 
       <span class="meta-card__key">热度</span>
       <span class="meta-card__val"><span class="meta-card__heat">★★★</span></span>
 
       <span class="meta-card__key">分类</span>
-      <span class="meta-card__val">人物肖像</span>
+      <span class="meta-card__val">小小东</span>
 
       <span class="meta-card__key">结构</span>
-      <span class="meta-card__val">上传头像→抽象表情包转化</span>
+      <span class="meta-card__val">低饱和纪实环境+高饱和实色剪影刺穿画面</span>
 
       <span class="meta-card__key">核心创新</span>
-      <span class="meta-card__val">万物可转表情包，夸张风格化处理</span>
+      <span class="meta-card__val">新</span>
 
       
 
       
       <span class="meta-card__key">日期</span>
-      <span class="meta-card__val">2026-05-07</span>
+      <span class="meta-card__val">2026-07-28</span>
       
     </div>
   </div>
@@ -449,7 +449,7 @@ body::before {
   
   <div class="info-block">
     <div class="info-block__title">📝 应用场景</div>
-    <div class="info-block__text">微信表情包、头像创作、趣味社交</div>
+    <div class="info-block__text">[&#39;场域视觉&#39;, &#39;剪影&#39;, &#39;早安海报&#39;]</div>
   </div>
   
 
@@ -462,9 +462,9 @@ body::before {
       <div class="comparison__item">
         <div class="comparison__item-label">
           <span>Nano Banana 2</span>
-          <span>2088KB</span>
+          <span>709KB</span>
         </div>
-        <img src="../assets/tests/gcli_7.png" alt="Nano Banana 2" loading="lazy">
+        <img src="../assets/tests/gcli_171.png" alt="Nano Banana 2" loading="lazy">
       </div>
       
       
@@ -472,9 +472,9 @@ body::before {
       <div class="comparison__item">
         <div class="comparison__item-label">
           <span>GPT Image 2</span>
-          <span>860KB</span>
+          <span>3351KB</span>
         </div>
-        <img src="../assets/tests/bizyair_7.png" alt="GPT Image 2" loading="lazy">
+        <img src="../assets/tests/bizyair_171.png" alt="GPT Image 2" loading="lazy">
       </div>
       
       
@@ -484,51 +484,31 @@ body::before {
   
 
   
-  <!-- Classic prompt (no structure) -->
+  <!-- Structured prompt -->
+  
+
+  
+
+  
+
+  
+  
   <div class="classic">
-    <div class="classic__label">经典版（非汤底结构）</div>
-    
-    <div class="classic__text" id="full-text">任务目标：
-基于参考图生成一套&#34;聊天贴纸表情包合集&#34;。整体需具备强情绪表达、传播性，以及统一但极具个性的视觉风格。最终效果应像：一个人用鼠标在电脑上胡乱画画并顺手乱写文字，低质量但非常真实、有趣、好笑。
-
-输入结构：
-图片1：角色参考（可能包含一个或多个角色）
-图片2：版式参考（仅用于理解16格结构）
-用户输入变量：文案内容（多行文本，可少于或多于16条）
-
-一致性要求（核心重定义）：
-本任务采用&#34;错误一致性&#34;，而非&#34;写实一致性&#34;。
-同一角色在不同贴纸中：不需要长得一样，但必须&#34;画得像同一个人乱画的&#34;。
-必须统一：相同的笨拙画法、相同的简化方式、相同的错误习惯
-允许：五官错位、比例变化、结构错误、细节缺失
-必须：保留最低识别特征
-
-版式与结构：共16个贴纸，4x4排列
-
-文案系统：数量处理（少于16条自动补全，多于16条自然筛选）；语气优先吐槽/自言自语/情绪爆发
-
-文字与画面融合（关键）：文字必须&#34;画出来&#34;，而不是&#34;排版出来&#34;。字像鼠标手写：歪、抖、大小不一
-
-美学风格DNA：极差手绘 + MS Paint鼠标乱画 + 失败模仿
-
-风格执行约束（极重要）：
-当冲突发生时：真实感 vs 风格 → 必须优先风格
-禁止：精致画面、正常比例、干净线条、强设计感
-判断标准：如果画面开始&#34;好看&#34;，说明失败，必须回到粗糙、混乱状态
-
-最终目标：
-&#34;一个人不会画画，但用鼠标乱画了16次，每次顺手写了一句不同状态下的吐槽，结果意外很好笑。&#34;</div>
+    <div class="classic__label">提示词原文</div>
+    <div class="classic__text" id="full-text">围绕任意主题对象生成一张强烈平面设计感的真实场域视觉：先建立一层低饱和单色的纪实环境影像，保留远近空间、建筑或场域肌理、空气雾度与轻微颗粒，让背景成为有深度的灰阶信息场；再把主题中最具识别度的核心形体抽象成贯穿中轴的巨大实色剪影，轮廓必须完整、边缘干净、没有立体光影，像一块明亮色纸被精准覆盖在现实影像上，形成“真实空间被图形符号刺穿”的第一眼冲击。主形体拥有最高视觉权重，底部与环境轻微咬合，上方保持呼吸空间，背景细节只承担尺度、密度和现实感。色彩从主题自身的品牌、材质、季节或情绪中提取：大面积环境降为冷静低饱和明暗层，少量主题派生的高饱和亮色承担情绪与记忆点，同时用于主剪影和关键信息文字，保持鲜明、干净、边界发光感强的现代气质，不复制固定色号。底部设置紧凑居中的信息层，使用粗细分明的无衬线字体、短行堆叠、加大主标题字距，文字颜色跟随主强调色，辅助小字用浅色压低存在感；整体像发布预告与场域档案叠合，冷静、锐利、现代，避免把主体画成写实插画或让背景抢走剪影的符号强度。</div>
     <div class="section__copy"><button class="copy-btn" onclick="copyText('full-text')">copy →</button></div>
-    
   </div>
-
+  
+  
   
 
   <!-- Example spice -->
   
   <div class="info-block">
     <div class="info-block__title">💡 示例佐料</div>
-    <div class="info-block__code">上传你的头像照片</div>
+    <div class="info-block__code">主题：城市早安问候+地标建筑剪影+2026-07-29
+一共 10 个城市，每个城市都是不同的配色色相逻辑
+比例 9：16</div>
   </div>
   
 
@@ -543,10 +523,8 @@ body::before {
   
   <div class="nav-arrows">
     
-    <a href="6-以假乱真·纪实摄影.html">← #6</a>
+    <a href="170-私密仪式感-邀请海报-暗调近摄.html">← #170</a>
     
-    
-    <a href="8-抽象圆润风.html">#8 →</a>
     
   </div>
   
@@ -554,7 +532,7 @@ body::before {
   <!-- Footer -->
   <div class="footer">
     <a href="https://x.com/xiaoxiaodong01" target="_blank">@小小东</a>
-     · 05-07
+     · 07-28
   </div>
   <div class="gesture-hint">← swipe next · swipe back →</div>
 </div>
