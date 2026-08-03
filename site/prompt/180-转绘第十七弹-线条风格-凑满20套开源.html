@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#180 转绘第十七弹·线条风格·凑满20套开源 · 提示词画廊</title>
+<style>
+:root {
+  --bg: #f7f5f2;
+  --bg-card: #ffffff;
+  --bg-hover: #f5f2ef;
+  --border: #e8e4df;
+  --text: #5a5550;
+  --text-muted: #a09890;
+  --text-meta: #b8b0a8;
+  --broth: #f5f0eb;
+  --broth-border: #c4a87a;
+  --spice: #eff1f0;
+  --spice-border: #8ba8a4;
+  --catalyst: #f2eeeb;
+  --catalyst-border: #c0988a;
+  --avoid-text: #b07070;
+  --accent: #c4a87a;
+  --accent-colophon: #c4bba8;
+  --serif: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* --- Nav --- */
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 0 12px;
+}
+.nav__back {
+  font-family: var(--serif);
+  font-weight: 200;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.nav__back:hover { color: var(--text); }
+.nav__random {
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.4;
+  text-decoration: none;
+}
+.nav__line {
+  border: none;
+  border-top: 1px solid var(--accent);
+  opacity: 0.5;
+}
+
+/* --- Title block --- */
+.title-block {
+  padding-top: 48px;
+}
+.title-block__num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-meta);
+  letter-spacing: 0.1em;
+}
+.title-block__title {
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: 20px;
+  color: var(--text);
+  margin-top: 4px;
+  letter-spacing: 0.04em;
+}
+
+/* --- Meta card (ticket style) --- */
+.meta-card {
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+.meta-card__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.meta-card__key {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-meta);
+  white-space: nowrap;
+}
+.meta-card__val {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.meta-card__val a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.meta-card__val a:hover { text-decoration: underline; }
+.meta-card__heat { color: var(--accent); letter-spacing: 2px; }
+.meta-card__tag {
+  display: inline-block;
+  padding: 1px 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  margin-right: 4px;
+}
+
+/* --- Comparison --- */
+.comparison {
+  padding-top: 48px;
+}
+.comparison__title {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-meta);
+  margin-bottom: 12px;
+  letter-spacing: 0.1em;
+}
+.comparison__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.comparison__item {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.comparison__item-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-meta);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  justify-content: space-between;
+}
+.comparison__item img {
+  width: 100%;
+  height: auto;
+  display: block;
+  cursor: zoom-in;
+  object-fit: contain;
+}
+
+/* Lightbox */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  animation: lb-fade 0.2s ease;
+}
+@keyframes lb-fade { from { opacity: 0; } to { opacity: 1; } }
+.lightbox img {
+  max-width: 95vw;
+  max-height: 95vh;
+  object-fit: contain;
+  border-radius: 2px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+}
+.lightbox__close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  color: #fff;
+  font-size: 28px;
+  opacity: 0.6;
+  cursor: pointer;
+  font-weight: 100;
+}
+.lightbox__close:hover { opacity: 1; }
+.comparison__item--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-meta);
+  opacity: 0.5;
+}
+.comparison__single {
+  max-width: 50%;
+}
+
+/* --- Section (broth/spice/catalyst) --- */
+.section {
+  padding-top: 48px;
+}
+.section__inner {
+  padding: 20px 24px;
+  border-radius: 2px;
+}
+.section--broth .section__inner { background: var(--broth); border-left: 1px solid var(--broth-border); }
+.section--spice .section__inner { background: var(--spice); border-left: 1px solid var(--spice-border); }
+.section--catalyst .section__inner { background: var(--catalyst); border-left: 1px solid var(--catalyst-border); }
+
+.section__label {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.section__text {
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: 13px;
+  line-height: 2;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.section__copy {
+  text-align: right;
+  margin-top: 12px;
+}
+.copy-btn {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.copy-btn:hover { color: var(--text); }
+.copy-btn--done { color: var(--accent); }
+
+/* --- Classic (no structure) --- */
+.classic {
+  padding-top: 48px;
+}
+.classic__label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+  opacity: 0.7;
+  margin-bottom: 12px;
+}
+.classic__text {
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: 13px;
+  line-height: 2;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 20px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+/* --- Info blocks (scenes, spice example, innovation) --- */
+.info-block {
+  padding-top: 32px;
+}
+.info-block__title {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-meta);
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+.info-block__text {
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--text-muted);
+}
+.info-block__code {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--text);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 12px 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* --- Avoid list --- */
+.avoid {
+  padding-top: 32px;
+}
+.avoid__title {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-meta);
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+.avoid__list {
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: 12px;
+  color: var(--avoid-text);
+  line-height: 2;
+}
+
+/* --- Copy bar --- */
+.copy-bar {
+  padding-top: 32px;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  font-family: var(--sans);
+  font-size: 10px;
+}
+
+/* --- Footer --- */
+.footer {
+  text-align: center;
+  padding: 48px 0 24px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--accent-colophon);
+}
+.footer a { color: inherit; text-decoration: none; }
+
+/* --- Gesture hint --- */
+.gesture-hint {
+  text-align: center;
+  padding: 12px 0 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-meta);
+  opacity: 0.5;
+}
+
+/* --- Nav arrows --- */
+.nav-arrows {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 32px;
+}
+.nav-arrows a {
+  font-family: var(--serif);
+  font-weight: 200;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.nav-arrows a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Nav -->
+  <nav class="nav">
+    <a class="nav__back" href="../index.html" id="backLink">← gallery</a>
+    <a class="nav__random" href="javascript:void(0)" onclick="randomPrompt()" title="随机">🎲</a>
+  </nav>
+  <hr class="nav__line">
+
+  <!-- Title -->
+  <div class="title-block">
+    <div class="title-block__num">#180</div>
+    <div class="title-block__title">转绘第十七弹·线条风格·凑满20套开源</div>
+  </div>
+
+  <!-- Meta card -->
+  <div class="meta-card">
+    <div class="meta-card__grid">
+      <span class="meta-card__key">编号</span>
+      <span class="meta-card__val">#180</span>
+
+      <span class="meta-card__key">类型</span>
+      <span class="meta-card__val">
+        <span class="meta-card__tag">image</span>
+        
+        <span class="meta-card__tag">汤底结构</span>
+        
+      </span>
+
+      <span class="meta-card__key">垫图</span>
+      <span class="meta-card__val"></span>
+
+      <span class="meta-card__key">热度</span>
+      <span class="meta-card__val"><span class="meta-card__heat">★★★</span></span>
+
+      <span class="meta-card__key">分类</span>
+      <span class="meta-card__val">小小东</span>
+
+      <span class="meta-card__key">结构</span>
+      <span class="meta-card__val">转绘提示词第十七弹，善用比喻做提示词，目标凑满20套开源</span>
+
+      <span class="meta-card__key">核心创新</span>
+      <span class="meta-card__val">新</span>
+
+      
+
+      
+      <span class="meta-card__key">日期</span>
+      <span class="meta-card__val">2026-08-02</span>
+      
+    </div>
+  </div>
+
+  <!-- Application scenes -->
+  
+  <div class="info-block">
+    <div class="info-block__title">📝 应用场景</div>
+    <div class="info-block__text">[&#39;转绘&#39;, &#39;插图&#39;, &#39;线条风格&#39;, &#39;开源&#39;]</div>
+  </div>
+  
+
+  <!-- Test images comparison -->
+  <div class="comparison">
+    <div class="comparison__title">🧪 模型对比测试</div>
+    <div class="comparison__grid">
+      
+      
+      <div class="comparison__item">
+        <div class="comparison__item-label">
+          <span>Nano Banana 2</span>
+          <span>待测试</span>
+        </div>
+        <div class="comparison__item—-empty" style="display:flex;align-items:center;justify-content:center;min-height:180px;background:var(--bg);font-family:var(--mono);font-size:9px;color:var(--text-meta);opacity:0.5;">
+          尚未生成
+        </div>
+      </div>
+      
+      
+      
+      <div class="comparison__item">
+        <div class="comparison__item-label">
+          <span>GPT Image 2</span>
+          <span>待测试</span>
+        </div>
+        <div class="comparison__item—-empty" style="display:flex;align-items:center;justify-content:center;min-height:180px;background:var(--bg);font-family:var(--mono);font-size:9px;color:var(--text-meta);opacity:0.5;">
+          尚未生成
+        </div>
+      </div>
+      
+      
+    </div>
+  </div>
+
+  
+
+  
+  <!-- Structured prompt -->
+  
+
+  
+
+  
+
+  
+  
+  <div class="classic">
+    <div class="classic__label">提示词原文</div>
+    <div class="classic__text" style="color:var(--text-meta);">提示词原文待提取</div>
+  </div>
+  
+  
+  
+
+  <!-- Example spice -->
+  
+
+  
+
+  <!-- Copy bar -->
+  <div class="copy-bar">
+    <button class="copy-btn" onclick="copyFullPrompt()">复制全部提示词</button>
+  </div>
+
+  <!-- Nav arrows -->
+  
+  <div class="nav-arrows">
+    
+    <a href="179-PPT第十二弹-命题作文信息图-可延展多场景.html">← #179</a>
+    
+    
+    <a href="181-安静小焦点-早安-冷静美学.html">#181 →</a>
+    
+  </div>
+  
+
+  <!-- Footer -->
+  <div class="footer">
+    <a href="https://x.com/xiaoxiaodong01" target="_blank">@小小东</a>
+     · 08-02
+  </div>
+  <div class="gesture-hint">← swipe next · swipe back →</div>
+</div>
+
+<script>
+const PROMPT_DATA = ["181-\u5b89\u9759\u5c0f\u7126\u70b9-\u65e9\u5b89-\u51b7\u9759\u7f8e\u5b66", "180-\u8f6c\u7ed8\u7b2c\u5341\u4e03\u5f39-\u7ebf\u6761\u98ce\u683c-\u51d1\u6ee120\u5957\u5f00\u6e90", "179-PPT\u7b2c\u5341\u4e8c\u5f39-\u547d\u9898\u4f5c\u6587\u4fe1\u606f\u56fe-\u53ef\u5ef6\u5c55\u591a\u573a\u666f", "178-PPT\u7b2c\u5341\u4e09\u5f39-\u6697\u573a\u9ad8\u53cd\u5dee-\u4e60\u60ef\u6210\u6027\u77e5\u8bc6\u5361\u7247", "177-PPT\u521b\u610f\u673a\u6784\u578b-\u5343\u4eba\u5343\u9762-\u5f00\u653e\u914d\u8272", "176-\u677e\u5f1b\u6e05\u900f\u65e9\u5b89-\u5706\u89d2\u5f71\u50cf\u7a97-\u7f16\u8f91\u6d77\u62a5", "175-\u62a5\u544a\u578b\u7eaa\u5b9ePPT\u6c64\u5e95-\u56fd\u9645\u4e3b\u4e49\u7248\u5f0f", "174-\u6f14\u51fa\u5f0f\u56fe\u6587\u6d77\u62a5\u6c64\u5e95-\u9ad8\u660e\u5ea6\u8272\u5757\u62fc\u8d34", "173-\u521b\u610f\u7f16\u8f91\u578bPPT-\u59dc\u6587\u4f5c\u54c1\u5206\u6790", "172-\u539a\u91cd\u5386\u53f2\u98cePPT-\u6587\u5915\u5927\u706b-\u6863\u6848\u8d28\u611f", "171-ping-mian-she-ji-gan-shi-ju-shi-jue-cheng-shi-zao-an", "170-\u79c1\u5bc6\u4eea\u5f0f\u611f-\u9080\u8bf7\u6d77\u62a5-\u6697\u8c03\u8fd1\u6444", "169-\u6697\u8272\u539a\u6846-\u7a97\u666f\u6587\u827a-\u6444\u5f71\u611f", "168-\u73bb\u7483\u906e\u7f69-\u72b9\u62b1\u7435\u7436-\u5206\u5c4f\u6d77\u62a5", "167-\u56fd\u9645\u4e3b\u4e49-\u6784\u6210\u4e3b\u4e49-\u5305\u8c6a\u65af", "166-\u65b0\u827a\u672f\u8fd0\u52a8-\u5de5\u827a\u7f8e\u672f-\u7f16\u8f91\u8bbe\u8ba1", "165-\u4f98\u5bc2\u7f8e\u5b66-\u4e1c\u65b9\u7559\u767d-\u6c11\u827a\u8d28\u611f", "164-\u65e7\u62a5\u7eb8\u5934\u7248-\u6241\u5e73\u63d2\u753b-\u7ae5\u8da3\u544a\u793a", "163-\u5546\u4e1a\u9759\u7269-\u74f7\u7816\u53f0\u9762-\u6000\u65e7\u5e7f\u544a\u611f", "162-\u6d77\u6d0b\u5149\u6591\u5a5a\u7eb1-\u4f4e\u7167\u5ea6\u591c\u666f-\u4e09\u8fde\u5206\u955c", "161-\u5706\u70b9\u624b\u7ed8\u56fe\u6848-\u8d34\u7eb8\u6837\u5f20-\u7cd6\u679c\u8272\u8868\u60c5", "160-\u4eba\u50cf\u6b8b\u5f71-\u52a8\u6001\u62d6\u5f71-\u7535\u5f71\u611f\u8096\u50cf", "159-\u5c71-\u751c\u54c1-\u7eaa\u5ff5\u7891", "158-\u4eba\u50cf-\u6742\u5fd7\u5c01\u9762-\u5149\u5f71", "157-\u5012\u7f6e-\u6c34\u5f71-\u7535\u5f71\u6d77\u62a5", "156-\u80cc\u666f\u7b26\u53f7-\u81ea\u5a92\u4f53\u5c01\u9762", "155-\u6709\u673a\u526a\u5f71-\u5bc6\u96c6\u8986\u76d6", "154-\u8336\u56ed-\u6d77\u62a5", "153-\u996e\u6599-\u4ea7\u54c1\u6d77\u62a5", "152-\u623f\u4ea7-\u6d77\u62a5", "151-\u5a5a\u7eb1\u7167-\u6279\u91cf", "150-\u5a5a\u793c-\u6784\u56fe", "149-\u7ebf\u6027\u9aa8\u67b6\u5b57\u4f53-\u8367\u5149\u8272\u55b7\u96fe-\u65e9\u5b89\u6d77\u62a5", "148-\u996e\u6599-\u6d77\u62a5-\u8fdb\u5316", "147-\u5347\u7ea7\u63d0\u793a\u8bcd\u8d28\u91cf-\u8d85\u957f\u903b\u8f91", "146-GPT56\u5927\u6691\u8282\u6c14\u6d77\u62a5", "145-\u5706\u5fc3\u538b\u5c4f-\u660e\u4eae\u6e05\u751c-\u5305\u88c5\u5e7f\u544a\u611f", "144-3D\u5fae\u7f29\u6a21\u578b-\u7ea2\u767d\u62fc\u8272-\u7b49\u8ddd\u89c6\u89d2", "143-\u65e7\u4e66\u5c01\u9762\u6c14\u8d28-\u892a\u8272\u7eb8\u57fa-\u5b66\u672f\u4e66\u6392\u7248", "142-\u73b0\u4ee3\u4e1c\u65b9\u7f8e\u5b66-\u4eea\u5f0f\u611f-\u5730\u4ea7\u6d77\u62a5", "141-\u73b0\u4ee3\u4e1c\u65b9\u6781\u7b80-\u4e2d\u56fd\u7ea2-\u6821\u5e86\u6d77\u62a5", "140-\u56fe\u5f62\u62fc\u8d34-\u4e2a\u6027\u63cf\u8fb9-\u9ed1\u767d\u5f71\u50cf", "139-\u65e9\u5b89\u5bf9\u89d2\u7ebf\u6784\u56fe-\u6d41\u52a8\u7cfb\u5217", "138-\u590f\u65e5\u4eba\u50cf-\u660e\u5a9a\u65e5\u7cfb\u98ce", "137-\u5546\u4e1a\u56fe\u5f62\u7ebf\u63cf\u5c0f\u89d2\u8272-\u7cfb\u7edf\u7ea7\u63d0\u793a\u8bcd", "136-\u7535\u5546\u4ea7\u54c1\u6d77\u62a5-\u53ef\u7231\u88c5\u9970-\u6279\u91cf\u8f93\u51fa", "135-\u8bfe\u4ef6\u56fe\u9274\u4fe1\u606f\u56fe-\u6de1\u96c5\u98ce", "134-\u516c\u53f8\u4eba\u4e8b\u6d77\u62a5-\u56db\u7ec4\u7cfb\u5217", "133-\u534a\u900f\u660e\u7ef5\u8f6f-\u8fde\u7eed\u5c42\u9762\u65e9\u5b89\u6d77\u62a5", "132-\u7eaa\u5ff5\u7891\u5de8\u7269-\u65e9\u5b89\u6d77\u62a5", "131-\u5927\u5b57-\u56fe\u6587\u878d\u5408-\u7a7a\u95f4\u541e\u6ca1", "130-\u9ad8\u6865\u6d41\u957f\u6587\u901f\u8bfb\u5347\u7ea7-\u7cfb\u7edf\u7ea7\u63d0\u793a\u8bcd", "129-\u9971\u6ee1\u5706\u6da6-AI\u5de5\u5177\u5c01\u9762", "128-\u957f\u6587\u901f\u8bfb\u5347\u7ea7-\u9ad8\u6865\u6d41\u4fe1\u606f\u6d77\u62a5", "127-\u5730\u5e73\u7ebf-\u5de8\u5899", "126-\u7eb8\u611f-\u6d77\u62a5", "125-\u6e05\u723d-\u901a\u900f-\u996e\u6599", "124-\u7f8e\u5b66\u63d0\u793a\u8bcd-\u9ec4\u8272", "123-\u7a7a\u95f4\u541e\u6ca1-\u5de8\u5b57\u6a2a\u5207-\u6982\u5ff5\u6d77\u62a5", "122-\u65e9\u5b89-\u56fe\u5f62\u8bb0\u5fc6\u70b9", "121-\u5927\u5b57\u62a5\u5c01\u9762-\u5de8\u578b\u88c1\u5207\u5b57\u5f62", "120-\u5a5a\u793c-\u8bf7\u67ec-\u5a5a\u7eb1", "119-\u4fe1\u606f\u578b\u7559\u767d\u6d77\u62a5-\u8d85\u5927\u6807\u9898", "118-\u6ce1\u6ce1\u5b57\u5076\u50cf\u5361\u7247-\u6f6e\u6d41\u4eba\u7269", "117-\u73af\u5f62\u653e\u5c04\u5f00\u5c4f-\u6c34\u5f69\u5f69\u94c5", "116-\u6c11\u56fd\u540d\u5a9b\u6de1\u5f69\u4ed5\u5973", "115-\u9ad8\u5bc6\u5ea6\u624b\u7ed8\u7ebf\u63cf", "114-\u73bb\u7483\u96fe\u5316\u5c01\u9762", "113-\u540c\u5fc3\u5706\u6ce2\u7eb9\u89c6\u89c9", "112-\u6495\u5f00\u4e00\u9053\u7f1d", "111-\u79e9\u5e8f\u5207\u5272\u5b9e\u9a8c\u5b57\u4f53", "110-\u6c49\u5b57\u5f02\u6784\u5b57\u4f53\u8bbe\u8ba1", "109-\u6c34\u58a8\u6781\u7b80\u5b57\u4f53\u6d77\u62a5", "108-\u50cf\u7d20\u808c\u7406\u7535\u5f71\u6d77\u62a5", "107-\u7a84\u7a97\u7834\u6846\u4eba\u50cf", "106-\u6b8b\u5f71\u62d6\u5f71\u4eba\u50cf", "105-X\u5b57\u8d1f\u5f62\u4eba\u50cf", "104-\u6781\u7b80\u9ed1\u8272\u624b\u7ed8\u7ebf\u63cf", "103-\u513f\u7ae5\u9a6c\u514b\u7b14\u624b\u7ed8\u98ce\u00b7\u56fe\u7247\u8f6c\u7ed8", "102-\u7b28\u62d9\u624b\u7ed8\u00b7\u7a1a\u62d9\u7eb8\u9762", "101-\u4e1c\u65b9\u8282\u5e86\u00b7\u6c34\u58a8\u8282\u6c14\u6d77\u62a5", "100-\u7ebf\u6761\u7f8e\u5b66\u00b7\u9ad8\u5bc6\u5ea6\u7ebf\u63cf", "99-\u6c11\u56fd\u540d\u5a9b\u00b7\u4eba\u50cf", "98-\u73bb\u7483\u96fe\u5316\u00b7\u4f5c\u54c1\u96c6\u5c01\u9762\u79e9\u5e8f", "97-\u7ae5\u8bdd\u7248\u753b\u5f0f\u56fe\u50cf\u00b7\u56fe\u7247\u8f6c\u7ed8", "96-\u6587\u5b57\u91cd\u590d+\u6838\u5fc3\u5927\u5143\u7d20", "95-\u56fe\u6587\u5d4c\u5957\u00b7\u6587\u5b57\u91cd\u590d+\u6750\u8d28\u951a\u70b9", "94-\u5927\u5b57\u62db\u724c\u00b7\u7ad6\u7248\u5546\u4e1a\u6d77\u62a5", "93-\u50cf\u7d20\u5fae\u5149\u00b7\u7ad6\u7248\u7ed3\u6784\u89c6\u89c9", "92-\u66f2\u7ebf\u98ce\u683c\u5b57\u4f53\u00b7\u53cc\u8272\u8f68\u9053\u5b57\u5f62", "91-\u79c0\u6c14\u7ebf\u7a3f\u00b7\u7eb8\u672c\u7ebf\u63cf+\u5f69\u8272\u6279\u6ce8", "90-\u8bd7\u6027\u7f16\u8f91\u89c6\u89c9\u00b7\u6838\u5fc3\u8bcd\u660e\u6697", "89-\u7ae5\u8bdd\u7248\u753b\u00b7\u98ce\u683c\u8f6c\u6362", "88-\u6495\u5f00\u4e00\u9053\u7f1d\u00b7\u7eb8\u9762\u88c2\u9699", "87-\u5b57\u9aa8\u6e38\u7ebf\u00b7\u5b8b\u4f53\u521b\u65b0\u5b57\u4f53\u8bbe\u8ba1", "86-\u955c\u5934\u4e09\u5206\u6784\u56fe\u00b7\u53d6\u666f\u6846\u89c6\u89c9", "85-\u54c1\u724c\u83dc\u5355\u9875-\u6e29\u6696\u7eb8\u611f", "83-\u4e0a\u4e0b\u53cc\u573a-\u7f16\u8f91\u5e7f\u544a\u5f0f", "81-\u7eb8\u96fe\u5c42\u666f-\u96fe\u4e2d\u7eb8\u5207", "80-\u900f\u660e\u4ecb\u8d28-\u6e7f\u6da6\u6298\u5c04", "79-\u5b57\u4f53\u53d8\u5b9e\u4f53-\u5efa\u7b51\u5316\u5927\u5b57\u62a5", "77-\u7ebf\u6027\u8fd0\u52a8\u573a-\u540c\u6e90\u7ebf\u56e2\u663e\u5f62", "76-\u50cf\u7d20\u6545\u969c\u98ce-\u9a6c\u8d5b\u514b\u53f0\u9636", "75-\u6c49\u5b57\u610f\u8c61\u5316\u8bbe\u8ba1", "74-\u65c5\u884c\u8bb0\u5fc6\u7a97\u53e3\u00b7\u9ad8\u94c1\u7a97\u666f", "73-\u4e09\u89d2\u5f62\u8df3\u51fa\u7a97\u53e3\u00b7\u81ea\u5b9a\u4e49\u51e0\u4f55\u88c1\u5207", "72-\u5c40\u90e8\u7834\u6846\u00b7\u51e0\u4f55\u60c5\u7eea\u7a97\u53e3", "71-\u5149\u7684\u5bb9\u5668\u00b7\u4e2d\u5f0f\u7a97\u68c2\u526a\u5f71\u6d77\u62a5", "70-\u4f1a\u6d41\u52a8\u4f1a\u53d1\u5149\u4f1a\u547c\u5438\u00b7\u6c34\u5f69\u7a7a\u6c14\u611f", "69-\u7ae5\u8da3\u624b\u7ed8\u00b7\u60c5\u7eea\u6587\u6848\u58c1\u7eb8", "68-\u4e1d\u7f51\u5370\u5237\u98ce\u00b7\u88ab\u65f6\u95f4\u4fdd\u5b58\u7684\u5370\u5237\u7269", "67-\u4e1c\u65b9\u6c34\u58a8\u52a8\u753b\u6c14\u8d28\u00b7\u8bfe\u672c\u63d2\u753b", "66-\u5e74\u8f6e\u00b7\u77e5\u8bc6\u751f\u547d\u7cfb\u7edf", "65-PPT\u4e00\u952e\u6210\u578b\u00b7\u65e0\u9650\u98ce\u683c\u6362\u80a4", "64-\u666f\u6df1\u7f8e\u5b66\u00b7\u8282\u6c14\u57ce\u5e02\u95ee\u5019\u5361\u7247", "63-\u4e1c\u65b9\u6c34\u5f69\u98ce\u00b7\u65e9\u5b89\u665a\u5b89\u95ee\u5019\u5361\u7247", "62-\u4e1c\u65b9\u7559\u767d\u611f\u00b7\u4e07\u80fd\u77e5\u8bc6\u56fe\u9274\u6c64\u5e95", "61-\u7eaa\u5ff5\u7891\u8c37\u98ce\u683c\u00b7\u6279\u91cf24\u8282\u6c14\u5361\u7247", "60-\u7425\u73c0\u6e29\u6da6\u6750\u8d28PPT\u00b7\u5c81\u6708\u6c89\u79ef\u7f8e\u5b66", "59-\u84dd\u767d\u9897\u7c92\u6587\u5b57\u80cc\u666fPPT\u00b7\u73b0\u4ee3\u7f16\u8f91\u611f", "58-\u4e07\u80fdPPT\u00b7\u4e1c\u65b9\u7f16\u8f91\u611f\u7f8e\u5b66", "57-\u53e4\u753b\u8fd8\u539f\u00b7\u6781\u7b80\u7248\u63d0\u793a\u8bcd", "56-\u7a7f\u8863\u6253\u626e\u00b7\u6cf3\u8863\u7a7f\u642d\u63d0\u6848", "55-\u5c71\u6d77\u7ecf\u53e4\u6587\u53e4\u753b\u5b9e\u666f\u6444\u5f71", "54-\u4e07\u80fd\u4fe1\u606f\u7b80\u5316\u56fe", "53-\u9ad8\u6865\u6d41\u6d77\u62a5\u8bbe\u8ba1", "52-\u7535\u5b50\u96f6\u914d\u4ef6\u53d8\u4e50\u9ad8\u00b7\u4e94\u91d1\u521b\u610f\u56fe", "51-\u6570\u636e\u8f6c\u56fe\u8868\u00b7\u5976\u6cb9\u98ce\u53ef\u89c6\u5316", "50-\u5341\u4e8c\u661f\u5ea7IP\u56fe\u00b734\u7f51\u683c\u7cfb\u5217", "49-\u6d82\u9e26\u53d8\u62b1\u6795\u00b7\u4eb2\u5b50\u827a\u672f\u884d\u751f\u54c1", "48-\u5341\u4e8c\u751f\u8096IP\u56fe\u00b734\u7f51\u683c\u7cfb\u5217", "47-\u4e00\u5b57\u7f8e\u5b66\u00b7\u4e2d\u5f0f\u79e9\u5e8f\u7f8e\u611f", "46-\u901a\u7528\u9080\u8bf7\u51fd\u00b7\u4e07\u80fd\u60c5\u5883\u517c\u5bb9", "45-\u624b\u76f8\u5347\u7ea7\u7248\u00b7\u5782\u76f4\u63d0\u95ee\u4e07\u80fd\u7248", "44-\u65f6\u5c1a\u9648\u5217\u578b\u4fe1\u606f\u6d77\u62a5", "43-\u6559\u5b66PPT\u4e07\u80fd\u6d77\u62a5\u00b7\u6cbb\u6108\u7cfb\u914d\u8272", "42-\u57ce\u5e02\u62fc\u97f3\u6d77\u62a5\u00b7\u6536\u85cf\u7ea7\u4e3b\u9898\u89c6\u89c9", "41-\u6587\u672c\u8f6c\u89c6\u89c9\u00b7\u957f\u6587\u901f\u89c8\u6d77\u62a5", "40-\u80ce\u513f\u56db\u7ef4\u7167\u7247\u00b7AI\u63a8\u6d4b\u8fd8\u539f\u957f\u76f8", "39-\u7559\u767d\u7ebf\u6761\u00b7\u5ba1\u7f8e\u75b2\u52b3\u7684\u6d17\u773c\u5668", "38-\u7ebf\u7a3f\u57ce\u5e02\u6d77\u62a5\u00b7\u4eba\u6c11\u5e01\u822c\u7f8e\u611f", "37-\u6781\u7b80\u7ebf\u6761\u5934\u50cf\u00b7\u5c71\u9876\u6d1e\u4eba\u8fdb\u5316\u7248", "36-\u6f2b\u753b\u65e5\u8bb0", "35-\u8bb0\u5fc6\u5fe0\u544a\u6982\u5ff5\u5361\u7247", "34-\u690d\u7269\u8bc6\u522b", "33-\u7535\u5546\u4e00\u952e\u6574\u5957\u8be6\u60c5\u9875", "32-\u5c0f\u7ea2\u4e66\u5361\u7247\u7cfb\u5217\u6d77\u62a5", "31-\u6d41\u7a0b\u56fe\u4fe1\u606f\u56fe\u91cd\u6784", "30-\u770b\u9762\u76f8\u00b7\u5782\u76f4\u63d0\u95ee\u7248", "29-\u4e2d\u6587\u5b57\u5f62\u8bbe\u8ba1", "28-\u6e05\u51b7\u6cb9\u58a8\u98ce", "27-\u7535\u5546\u5e7f\u544a-Banner", "26-\u5370\u8c61\u6d3e\u4fe1\u606f\u56fe", "25-\u5929\u7a7a\u53d8\u840c\u840c", "24-\u62bd\u8c61\u5934\u50cf", "23-\u4e50\u9ad8\u6587\u5b57", "22-\u5fae\u7f29\u6a21\u578b", "21-\u7ebf\u6761\u827a\u672f", "20-\u4e2d\u5f0f\u7a97\u666f", "19-\u5929\u7a7a\u624b\u7ed8\u4fee\u56fe", "18-\u62a5\u7eb8\u5934\u6761", "17-Logo-\u8bbe\u8ba1", "16-\u666f\u70b9\u5efa\u7b51\u4fe1\u606f\u56fe", "15-\u540d\u8457\u7ecf\u5178\u6d77\u62a5", "14-\u5efa\u7b51\u901f\u5199\u77e5\u8bc6\u56fe", "13-\u56fd\u5b9d\u6587\u7269\u56fe\u9274", "12-\u56fd\u98ce\u5510\u8bd7\u5b8b\u8bcd", "11-\u57ce\u5e02\u5ba3\u4f20\u6d77\u62a5", "10-\u8fdb\u5316\u53f2\u4fe1\u606f\u56fe", "9-\u60c5\u5934\u00b7\u4e07\u7269\u53ef\u60c5\u5934", "8-\u62bd\u8c61\u5706\u6da6\u98ce", "7-\u62bd\u8c61\u8868\u60c5\u5305", "6-\u4ee5\u5047\u4e71\u771f\u00b7\u7eaa\u5b9e\u6444\u5f71", "5-\u5b57\u4f53\u7f8e\u5b66\u00b7\u5355\u8bcd\u89c6\u89c9\u5316", "4-\u81ea\u5a92\u4f53\u5c01\u9762", "3-\u4fe1\u606f\u5361\u7247\u00b7\u4e07\u80fd\u63a8\u8350", "2-\u9762\u76f8\u7b97\u547d", "1-\u638c\u7eb9\u7b97\u547d"];
+
+function copyText(id) {
+  const el = document.getElementById(id);
+  navigator.clipboard.writeText(el.textContent.trim());
+  const btn = el.closest('.section__inner, .classic').querySelector('.copy-btn');
+  btn.textContent = '✓ copied';
+  btn.classList.add('copy-btn--done');
+  setTimeout(() => { btn.textContent = 'copy →'; btn.classList.remove('copy-btn--done'); }, 1500);
+}
+
+function copyFullPrompt() {
+  const text = document.querySelector('.classic__text, .section--broth .section__text');
+  if (text) navigator.clipboard.writeText(text.textContent.trim());
+  const btn = document.querySelector('.copy-bar .copy-btn');
+  btn.textContent = '✓ copied';
+  btn.classList.add('copy-btn--done');
+  setTimeout(() => { btn.textContent = '复制全部提示词'; btn.classList.remove('copy-btn--done'); }, 1500);
+}
+
+function randomPrompt() {
+  const slugs = PROMPT_DATA;
+  const current = window.location.pathname.split('/').pop().replace('.html', '');
+  const candidates = slugs.filter(s => s !== current);
+  if (candidates.length) window.location.href = candidates[Math.floor(Math.random() * candidates.length)] + '.html';
+}
+
+// Swipe gestures
+let touchStartX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].screenX - touchStartX;
+  if (Math.abs(dx) > 80) {
+    if (dx < 0) {
+      const nextLink = document.querySelector('.nav-arrows a:last-child');
+      if (nextLink) nextLink.click();
+    } else {
+      window.location.href = '../index.html' + (localStorage.getItem('pg_tab') ? '' : '');
+      // The index.html itself reads pg_tab from localStorage
+    }
+  }
+});
+
+// Lightbox — click any comparison image to zoom
+function openLightbox(src, alt) {
+  const lb = document.createElement('div');
+  lb.className = 'lightbox';
+  lb.innerHTML = `<span class="lightbox__close">&times;</span><img src="${src}" alt="${alt || ''}">`;
+  lb.addEventListener('click', e => { if (e.target === lb || e.target.classList.contains('lightbox__close')) lb.remove(); });
+  document.body.appendChild(lb);
+}
+
+document.querySelectorAll('.comparison__item img').forEach(img => {
+  img.addEventListener('click', () => openLightbox(img.src, img.alt));
+});
+</script>
+</body>
+</html>
